@@ -1,0 +1,11 @@
+attrs
+gunicorn
+gevent
+flask
+Jinja2
+xbstrap
+pyzmq
+toml
+logbook
+msgpack
+valideer

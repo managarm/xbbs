@@ -1,0 +1,26 @@
+command_endpoint = "tcp://127.0.0.1:16000"
+# Addresses can be dictionaries consisting of the bind and connect address: the
+# bind address is the local address that the coordinator will bind it's end of
+# the pipeline to. connect is the endpoint that will be passed to remote
+# workers for them to connect to deliver done jobs and logs. These two are
+# separate to work around NAT. Making the address a string makes both values
+# equal in the validation phase of config parsing
+#	{ bind = "tcp://127.0.0.1:16001", connect = "tcp://localhost:16001" }
+intake = "tcp://127.0.0.1:16999"
+workers = [
+	"tcp://127.0.0.1:16001"
+]
+project_base = "/home/arsen/xbci/site-local/projects"
+# do not change this value after initial setup, it's used by the workers to
+# determine the path where packages should be built, because some packages
+# decided hard coding absolute paths wasn't a terrible idea somehow
+build_root = "/home/arsen/xbci/site-local/worker"
+
+[projects.managarm]
+git = "/home/arsen/xbci/site-local/test-repo"
+description = "Pragmatic microkernel-based OS with fully asynchronous I/O"
+classes = ["managarm"]
+# external access to tools and packages repo, to be used by worker (through
+# xbps-install and just a simple tarfile download)
+packages = "/home/arsen/xbci/site-local/projects/managarm/package_repo"
+tools = "/home/arsen/xbci/site-local/projects/managarm/tool_repo"
