@@ -1,4 +1,3 @@
-#!/usr/bin/python3
 # SPDX-License-Identifier: AGPL-3.0-only
 import attr
 import gevent.monkey
@@ -17,8 +16,10 @@ import pathlib
 import shutil
 from socket import getfqdn
 from subprocess import check_call
+import requests
 import subprocess
 import tarfile
+from urllib.parse import urlparse
 
 with V.parsing(required_properties=True, additional_properties=None):
     CONFIG_VALIDATOR = V.parse({
@@ -30,6 +31,17 @@ class XbciWorker:
     current_project = attr.ib(default=None)
     current_job = attr.ib(default=None)
     zmq = attr.ib(default=zmq.Context.instance())
+
+
+def download(url, to):
+    src = urlparse(url, scheme='file')
+    if src.scheme == 'file':
+        shutil.copy(src.path, to)
+    else:
+        r = requests.get(url, stream=True)
+        with open(to, "wb") as f:
+            for chunk in r.iter_content(chunk_size=1024):
+                f.write(chunk)
 
 
 def upload(inst, job, kind, name, fpath):
@@ -67,12 +79,14 @@ def run_job(inst, job):
     build_dir = path.normpath(job.build_root)
     source_dir = f"{build_dir}.src"
     tool_pack = path.join(build_dir, "tools-pack")
+    tools_dir = path.join(build_dir, "tools")
     sysroot = path.join(build_dir, "system-root")
     try:
         os.makedirs(build_dir)
         os.makedirs(source_dir)
         os.mkdir(sysroot)
         os.mkdir(tool_pack)
+        os.mkdir(tools_dir)
         # TODO(arsen): put stricter restrictions on build_root
         check_call(["git", "init"], cwd=source_dir)
         check_call(["git", "remote", "add", "origin", job.repository],
@@ -89,6 +103,13 @@ def run_job(inst, job):
                         "-R", job.pkg_repo,
                         "-r", sysroot,
                         "-SM", x])
+        for x in job.needed_tools:
+            tool_dir = path.join(tools_dir, x)
+            os.mkdir(tool_dir)
+            tool_tar = path.join(tool_pack, f"{x}.tar.xz")
+            download(f"{job.tool_repo}/{x}.tar.xz", tool_tar)
+            with tarfile.open(tool_tar, "r") as tar:
+                tar.extractall(path=tool_dir)
         # TODO(arsen): extract to xbci.utils.run_hook
         hook_cmd = path.join(source_dir, 'ci/hook')
         if os.access(hook_cmd, os.X_OK):
@@ -98,7 +119,6 @@ def run_job(inst, job):
             log.debug("running hook: {}", hook_cmd)
             check_call([hook_cmd, "prejob"], cwd=build_dir, env=e)
 
-        # TODO(arsen): dl deps
         check_call(["xbstrap-pipeline", "run-job", job.job], cwd=build_dir,
                 stdin=subprocess.DEVNULL)
         for x in job.prod_pkgs:
@@ -107,7 +127,7 @@ def run_job(inst, job):
         for x in job.prod_tools:
             packed = path.join(tool_pack, f"{x}.tar.xz")
             with tarfile.open(packed, "w:xz") as tar:
-                tar.add(path.join(build_dir, "tools", x), arcname=".")
+                tar.add(path.join(tools_dir, x), arcname=".")
             upload(inst, job, "tool", x, packed)
     except Exception as e:
         for x in job.prod_pkgs:
@@ -147,6 +167,4 @@ def main():
 if __name__ == "__main__":
     main()
 
-# TODO(arsen): move pack and dependency download into xbstrap-pipeline, it
-# makes more sense than it being here.
 # TODO(arsen): notification pipe and remove artifact set transmission

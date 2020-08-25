@@ -9,3 +9,4 @@ toml
 logbook
 msgpack
 valideer
+requests
