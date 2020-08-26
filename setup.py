@@ -15,7 +15,12 @@ setup(
     description="A dependency-resolving distributed CI system for xbstrap",
     author="Arsen Arsenovic",
     author_email="arsen@aarsen.me",
-    packages=["xbci"],
+    packages=[
+        "xbci",
+        "xbci.worker",
+        "xbci.coordinator",
+        "xbci.protocol"
+    ],
     license="AGPL-3.0-only",
     # TODO(arsen): remove requirements file
     install_requires=[
