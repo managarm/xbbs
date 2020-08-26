@@ -39,8 +39,8 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "xbci-coordinator = xbci.coordinator.coordinator:main",
-            "xbci-worker = xbci.worker.worker:main"
+            "xbci-coordinator = xbci.coordinator:main",
+            "xbci-worker = xbci.worker:main"
         ]
     }
 )
