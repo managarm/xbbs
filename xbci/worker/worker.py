@@ -153,7 +153,7 @@ def run_job(inst, sock, job, logfd):
             # make sure that the subprocess being done makes this pipe EOF
             os.close(write_end)
             for x in parse_yaml_stream(progress):
-                # validate
+                # TODO(arsen): validate
                 log.debug("got notify {}", x)
                 subject = x["subject"]
                 action = x["action"]
