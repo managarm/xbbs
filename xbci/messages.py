@@ -100,6 +100,17 @@ class ArtifactMessage(BaseMessage):
         "?last_hash": V.Nullable(_is_blake2b_digest)
     })
 
+@attr.s
+class LogMessage(BaseMessage):
+    project = attr.ib()
+    job = attr.ib()
+    line = attr.ib()
+    _validator = V.parse({
+        "project": "string",
+        "job": "string",
+        "line": "string"
+    })
+
 def _last_hash_validator(x):
     if x == b"initial":
         return True

@@ -22,5 +22,14 @@ description = "Pragmatic microkernel-based OS with fully asynchronous I/O"
 classes = ["managarm"]
 # external access to tools and packages repo, to be used by worker (through
 # xbps-install and just a simple tarfile download)
-packages = "/home/arsen/xbci/site-local/projects/managarm/package_repo"
-tools = "/home/arsen/xbci/site-local/projects/managarm/tool_repo"
+packages = "file:///home/arsen/xbci/site-local/projects/managarm/package_repo"
+tools = "file:///home/arsen/xbci/site-local/projects/managarm/tool_repo"
+
+[projects.mlibc]
+git = "/home/arsen/xbci/site-local/mlibc-repo"
+description = "managarm takes too long to build"
+classes = ["managarm"]
+# external access to tools and packages repo, to be used by worker (through
+# xbps-install and just a simple tarfile download)
+packages = "file:///home/arsen/xbci/site-local/projects/mlibc/package_repo"
+tools = "file:///home/arsen/xbci/site-local/projects/mlibc/tool_repo"

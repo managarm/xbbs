@@ -18,7 +18,20 @@ setup(
     packages=["xbci"],
     license="AGPL-3.0-only",
     # TODO(arsen): remove requirements file
-    install_requires=requirements,
+    install_requires=[
+        "attrs",
+        "gunicorn",
+        "gevent",
+        "flask",
+        "Jinja2",
+        "xbstrap",
+        "pyzmq",
+        "toml",
+        "logbook",
+        "msgpack",
+        "valideer",
+        "requests"
+    ],
     entry_points={
         "console_scripts": [
             "xbci-coordinator = xbci.coordinator.coordinator:main",

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 import gevent.monkey
 gevent.monkey.patch_all()
+import datetime
 import gevent
 import gevent.event
 import attr
@@ -66,9 +67,16 @@ class Project:
     packages = attr.ib()
     tools = attr.ib()
     current = attr.ib(default=None)
+    last_run = attr.ib(default=None)
 
     def base(self, xbci):
         return path.join(xbci.project_base, self.name)
+
+    def logfile(self, inst, job):
+        tsdir = path.join(self.base(inst),
+                          self.last_run.isoformat(timespec="seconds"))
+        os.makedirs(tsdir, exist_ok=True)
+        return path.join(tsdir, f"{job}.log")
 
 @attr.s
 class Xbci:
@@ -172,7 +180,6 @@ class RunningProject:
 
 
 def solve_project(inst, projinfo, project):
-    some_failed = False
     while True:
         project.artifact_received.clear()
         some_waiting = False
@@ -195,7 +202,6 @@ def solve_project(inst, projinfo, project):
                     failed = True
 
             if failed:
-                some_failed = True
                 job.fail(project.jobs)
                 # This failure means that our artifacts might have changed -
                 # trigger a rescan
@@ -205,7 +211,6 @@ def solve_project(inst, projinfo, project):
             if not satisfied:
                 continue
 
-            print(job.deps, job.products)
             needed_tools = [x.name for x in job.deps if x.kind is Artifact.Kind.TOOL]
             needed_pkgs = [x.name for x in job.deps if x.kind is Artifact.Kind.PACKAGE]
             prod_tools = [x.name for x in job.products if x.kind is Artifact.Kind.TOOL]
@@ -230,10 +235,11 @@ def solve_project(inst, projinfo, project):
 
         # TODO(arsen): handle the edge case in which workers are dead
         if not some_waiting:
-            assert all([x.status == Job.Status.DONE for x in project.jobs.values()])
-            assert all([x.received for x in project.tool_set.values()])
-            assert all([x.received for x in project.pkg_set.values()])
-            return not some_failed
+            assert all(x.status == Job.Status.DONE for x in project.jobs.values())
+            assert all(x.received for x in project.tool_set.values())
+            assert all(x.received for x in project.pkg_set.values())
+            return all(not x.failed for x in project.tool_set.values()) and \
+                   all(not x.failed for x in project.pkg_set.values())
         project.artifact_received.wait()
 
 # TODO(arsen): a better log collection system. It should include the output of
@@ -244,7 +250,9 @@ def solve_project(inst, projinfo, project):
 # xterm-{256,}color does, since it is widely adopted and assumed.
 
 def run_project(inst, project):
-    projdir = path.join(inst.project_base, project.name, 'repo')
+    # TODO(arsen): there's a race condition here. add a lock on project
+    project.last_run = datetime.datetime.now()
+    projdir = path.join(project.base(inst), 'repo')
     os.makedirs(projdir, exist_ok=True)
     if not path.isdir(path.join(projdir, ".git")):
         subprocess.check_call(["git", "init"], cwd=projdir)
@@ -256,8 +264,14 @@ def run_project(inst, project):
             cwd=projdir)
     rev = subprocess.check_output(["git", "rev-parse", "HEAD"],
                                   cwd=projdir).decode().strip()
+    tool_repo = path.join(project.base(inst), 'tool_repo')
+    package_repo = path.join(project.base(inst), 'package_repo')
+    # TODO(arsen): remove to support incremental compilation
+    if path.isdir(tool_repo):
+        shutil.rmtree(tool_repo)
+    if path.isdir(package_repo):
+        shutil.rmtree(package_repo)
     with tempfile.TemporaryDirectory(dir=inst.tmp_dir) as td:
-        subprocess.check_call(["xbstrap", "init", projdir], cwd=td)
         hookcmd = path.abspath(path.join(projdir, "ci/hook"))
         if os.access(hookcmd, os.X_OK):
             e = dict(os.environ.items())
@@ -265,14 +279,11 @@ def run_project(inst, project):
             e["BUILD_DIR"] = td
             log.debug("running hook: {}", hookcmd)
             subprocess.check_call([hookcmd, "pregraph"], cwd=td, env=e)
+        subprocess.check_call(["xbstrap", "init", projdir], cwd=td)
         graph = json.loads(subprocess.check_output(["xbstrap-pipeline",
             "compute-graph", "--artifacts", "--json"],
             cwd=td).decode())
         graph = GRAPH_VALIDATOR.validate(graph)
-        if project.current:
-            # while loading the graph, someone else decided to run a build too.
-            # ignoring the new request. this is essentially a race
-            return
         project.current = RunningProject.parse_graph(project, rev, graph)
         try:
             log.info("job {} done; success? {}",
@@ -353,6 +364,7 @@ cmd_chunk.table = {}
 def cmd_artifact(inst, value):
     "handle receiving an artifact"
     message = msgs.ArtifactMessage.unpack(value)
+    log.debug("received artifact {}", message)
     artifact = None
     target = None
     try:
@@ -381,8 +393,12 @@ def cmd_artifact(inst, value):
         os.close(fd)
 
         try:
-            shutil.move(target, path.join(repo, message.filename))
-            # TODO(arsen): register package
+            artifact_file = path.join(repo, message.filename)
+            shutil.move(target, artifact_file)
+            if artifact.kind == Artifact.Kind.PACKAGE:
+                subprocess.check_call(["xbps-rindex", "-fa",
+                    path.join(artifact_file)])
+            # TODO(arsen): sign repo
         except Exception as e:
             log.exception("artifact deposit failed", e)
             artifact.failed = True
@@ -400,11 +416,26 @@ def cmd_artifact(inst, value):
             pass
 
 
+def cmd_log(inst, value):
+    message = msgs.LogMessage.unpack(value)
+    if not message.project in inst.projects:
+        return
+    proj = inst.projects[message.project]
+    if not inst.projects[message.project].last_run:
+        return
+
+    log.debug("recv log {}", message)
+    with open(proj.logfile(inst, message.job), mode="a") as logfile:
+        logfile.write(message.line)
+
+
 def intake_loop(inst):
     while True:
         try:
             [cmd, value] = inst.intake.recv_multipart()
-            log.debug("intake msg {}", cmd)
+            # these are too spammy
+            if cmd != b"chunk":
+                log.debug("intake msg {}", cmd)
             cmd = cmd.decode("us-ascii")
             intake_loop.cmds[cmd](inst, value)
         except Exception as e:
@@ -413,7 +444,8 @@ def intake_loop(inst):
 
 intake_loop.cmds = {
     "chunk": cmd_chunk,
-    "artifact": cmd_artifact
+    "artifact": cmd_artifact,
+    "log": cmd_log
 }
 
 
@@ -439,6 +471,7 @@ def main():
 
     for name, elem in cfg["projects"].items():
         inst.projects[name] = Project(name, **elem)
+        log.debug("got project {}", inst.projects[name])
 
     with inst.zmq.socket(zmq.REP) as sock_cmd, \
          inst.zmq.socket(zmq.PULL) as inst.intake, \
@@ -458,3 +491,4 @@ def main():
 
 # TODO(arsen): make a clean exit
 # TODO(arsen): handle the case in which workers do not successfully connect
+#              and/or disconnect
