@@ -188,8 +188,14 @@ def run_job(inst, sock, job, logfd):
             send_fail(inst, sock, job, "package", x)
         for x in job.prod_tools:
             send_fail(inst, sock, job, "tool", x)
-        shutil.rmtree(build_dir)
-        shutil.rmtree(source_dir)
+        try:
+            shutil.rmtree(build_dir)
+        except FileNotFoundError:
+            pass
+        try:
+            shutil.rmtree(source_dir)
+        except FileNotFoundError:
+            pass
         if notify_pipe:
             for x in notify_pipe:
                 try:
