@@ -229,8 +229,8 @@ def solve_project(inst, projinfo, project):
                 needed_pkgs=needed_pkgs,
                 prod_pkgs=prod_pkgs,
                 prod_tools=prod_tools,
-                tool_repo=path.join(projinfo.base(inst), "tool_repo"),
-                pkg_repo=path.join(projinfo.base(inst), "package_repo")
+                tool_repo=projinfo.tools,
+                pkg_repo=projinfo.packages
             )
             log.debug("sending job request {}", jobreq)
             inst.pipeline.send(jobreq.pack())
