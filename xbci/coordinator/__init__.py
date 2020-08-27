@@ -182,7 +182,7 @@ class RunningProject:
 
 
 def solve_project(inst, projinfo, project):
-    while inst.running:
+    while True:
         project.artifact_received.clear()
         some_waiting = False
         for name, job in project.jobs.items():
@@ -422,7 +422,6 @@ def cmd_log(inst, value):
     if not inst.projects[message.project].last_run:
         return
 
-    log.debug("recv log {}", message)
     with open(proj.logfile(inst, message.job), mode="a") as logfile:
         logfile.write(message.line)
 
@@ -431,9 +430,6 @@ def intake_loop(inst):
     while inst.running:
         try:
             [cmd, value] = inst.intake.recv_multipart()
-            # these are too spammy
-            if cmd != b"chunk":
-                log.debug("intake msg {}", cmd)
             cmd = cmd.decode("us-ascii")
             intake_loop.cmds[cmd](inst, value)
         except zmq.ZMQError as e:
