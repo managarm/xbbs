@@ -84,6 +84,16 @@ def parse_yaml_stream(stream):
         yield yaml.safe_load(buf)
 
 
+def process_repo_url(url):
+    src = urlparse(url, scheme='file')
+    if src.scheme == 'file':
+        return src.path
+    elif src.scheme in ["http", "https"]:
+        return url
+    else:
+        raise RuntimeError("url must be file or http(s)")
+
+
 # TODO(arsen): all output needs to be redirected to a pty
 def run_job(inst, sock, job, logfd):
     log.info("running job {}", job)
@@ -119,7 +129,7 @@ def run_job(inst, sock, job, logfd):
             siteyml.write('{"pkg_management":{"format":"xbps"}}\n')
         for x in job.needed_pkgs:
             check_call(["xbps-install", "-vy",
-                        "-R", job.pkg_repo,
+                        "-R", process_repo_url(job.pkg_repo),
                         "-r", sysroot,
                         "-SM", x])
         for x in job.needed_tools:
