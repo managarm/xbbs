@@ -346,6 +346,7 @@ def cmd_chunk(inst, value):
     if chunk.last_hash == b"initial":
         # (fd, path)
         store = tempfile.mkstemp(dir=inst.collection_dir)
+        os.fchmod(store[0], 0o660)
     elif not chunk.last_hash in cmd_chunk.table:
         return
     else:
