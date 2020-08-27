@@ -1,0 +1,17 @@
+example dockerfile
+will be removed
+
+coordinator.toml was modified to work with docker:
+diff --git a/coordinator.toml b/coordinator.toml
+index 52e0d45..c6c853b 100644
+--- a/coordinator.toml
++++ b/coordinator.toml
+@@ -14,7 +14,7 @@ project_base = "/home/arsen/xbci/site-local/projects"
+ # do not change this value after initial setup, it's used by the workers to
+ # determine the path where packages should be built, because some packages
+ # decided hard coding absolute paths wasn't a terrible idea somehow
+-build_root = "/home/arsen/xbci/site-local/worker"
++build_root = "/builder/worker"
+ 
+ [projects.managarm]
+ git = "/home/arsen/xbci/site-local/test-repo"
