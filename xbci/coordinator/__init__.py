@@ -23,6 +23,7 @@ import toml
 import valideer as V
 import xbci.protocol
 import xbci.messages as msgs
+import xbci.util as xutils
 
 # more properties are required than not
 with V.parsing(required_properties=True, additional_properties=V.Object.REMOVE):
@@ -85,6 +86,7 @@ class Xbci:
     tmp_dir = attr.ib()
     build_root = attr.ib()
     intake_address = attr.ib()
+    running = attr.ib(default=False)
     pipeline = attr.ib(default=None)
     intake = attr.ib(default=None)
     projects = attr.ib(factory=dict)
@@ -180,7 +182,7 @@ class RunningProject:
 
 
 def solve_project(inst, projinfo, project):
-    while True:
+    while inst.running:
         project.artifact_received.clear()
         some_waiting = False
         for name, job in project.jobs.items():
@@ -272,13 +274,7 @@ def run_project(inst, project):
     if path.isdir(package_repo):
         shutil.rmtree(package_repo)
     with tempfile.TemporaryDirectory(dir=inst.tmp_dir) as td:
-        hookcmd = path.abspath(path.join(projdir, "ci/hook"))
-        if os.access(hookcmd, os.X_OK):
-            e = dict(os.environ.items())
-            e["SOURCE_DIR"] = str(projdir)
-            e["BUILD_DIR"] = td
-            log.debug("running hook: {}", hookcmd)
-            subprocess.check_call([hookcmd, "pregraph"], cwd=td, env=e)
+        xutils.run_hook(log, projdir, td, "pregraph")
         subprocess.check_call(["xbstrap", "init", projdir], cwd=td)
         graph = json.loads(subprocess.check_output(["xbstrap-pipeline",
             "compute-graph", "--artifacts", "--json"],
@@ -303,7 +299,7 @@ def cmd_build(inst, name):
     gevent.spawn(run_project, inst, proj)
 
 def command_loop(inst, sock_cmd):
-    while True:
+    while inst.running:
         try:
             [command, arg] = sock_cmd.recv_multipart()
             command = command.decode("us-ascii")
@@ -323,6 +319,9 @@ def command_loop(inst, sock_cmd):
                 code = str(code)
 
             sock_cmd.send_multipart([code.encode(), value])
+        except zmq.ZMQError as e:
+            log.exception("command loop i/o error, aborting")
+            return
         except xbci.protocol.ProtocolError as e:
             log.exception("comand processing error", e)
             sock_cmd.send_multipart([str(e.code).encode(),
@@ -357,7 +356,6 @@ def cmd_chunk(inst, value):
     os.write(store[0], chunk.data)
 
 
-# TODO(arsen): clean up if the files get too hefty
 cmd_chunk.table = {}
 
 
@@ -430,7 +428,7 @@ def cmd_log(inst, value):
 
 
 def intake_loop(inst):
-    while True:
+    while inst.running:
         try:
             [cmd, value] = inst.intake.recv_multipart()
             # these are too spammy
@@ -438,6 +436,9 @@ def intake_loop(inst):
                 log.debug("intake msg {}", cmd)
             cmd = cmd.decode("us-ascii")
             intake_loop.cmds[cmd](inst, value)
+        except zmq.ZMQError as e:
+            log.exception("intake pipe i/o error, aborting")
+            return
         except Exception as e:
             log.exception("intake pipe error, continuing", e)
 
@@ -483,10 +484,13 @@ def main():
         sock_cmd.bind(cfg.get("command_endpoint"))
         dumper = gevent.signal_handler(signal.SIGUSR1, dump_projects, inst)
         log.info("startup")
+        intake = gevent.spawn(intake_loop, inst)
+        inst.running = True
         try:
-            gevent.spawn(intake_loop, inst)
             command_loop(inst, sock_cmd)
         finally:
+            inst.running = False
+            intake.join()
             dumper.cancel()
 
 # TODO(arsen): make a clean exit

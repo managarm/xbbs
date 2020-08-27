@@ -2,16 +2,16 @@
 import attr
 import gevent.monkey
 gevent.monkey.patch_all()
-import fcntl
 import gevent
-import gevent.fileobject as gfobj
 from hashlib import blake2b
+import gevent.fileobject as gfobj
 from logbook import Logger, StderrHandler, StreamHandler
 import signal
 import toml
 import valideer as V
 import os
 import os.path as path
+import xbci.util as xutils
 import xbci.messages as msgs
 import zmq.green as zmq
 import pathlib
@@ -30,12 +30,6 @@ with V.parsing(required_properties=True, additional_properties=None):
     });
 
 
-# TODO(arsen): extract to utils
-def open_coop(*args, **kwargs):
-    f = gfobj.FileObjectPosix(*args, **kwargs)
-    fcntl.fcntl(f, fcntl.F_SETFL, os.O_NDELAY)
-    return f
-
 @attr.s
 class XbciWorker:
     current_project = attr.ib(default=None)
@@ -49,32 +43,33 @@ def download(url, to):
         shutil.copy(src.path, to)
     else:
         r = requests.get(url, stream=True)
-        with open_coop(to, "wb") as f:
-            for chunk in r.iter_content(chunk_size=1024):
+        # doesnt need to be coop - this is in startup, done in sync
+        with open(to, "wb") as f:
+            for chunk in r.iter_content(chunk_size=CHUNK_SIZE):
                 f.write(chunk)
 
 CHUNK_SIZE = 32 * 1024
-def upload(inst, sock, job, kind, name, fpath):
-    with open_coop(fpath, "rb") as toupload:
-        # wait for all messages to be sent before closing
-        data = toupload.read(1024)
+def upload(inst, locked_sock, job, kind, name, fpath):
+    with gfobj.FileObjectThread(open(fpath, "rb")) as toupload, \
+         locked_sock as sock:
+        data = toupload.read(CHUNK_SIZE)
         last_hash = b"initial"
         while len(data):
             m = msgs.ChunkMessage(last_hash, data).pack()
             last_hash = blake2b(m).digest()
             sock.send_multipart([b"chunk", m])
-            data = toupload.read(1024)
+            data = toupload.read(CHUNK_SIZE)
         sock.send_multipart([b"artifact", msgs.ArtifactMessage(
                 job.project, kind, name, True,
                 path.basename(fpath), last_hash
             ).pack()])
 
 
-def send_fail(inst, sock, job, kind, name):
-    # wait for all messages to be sent before closing
-    sock.send_multipart([b"artifact", msgs.ArtifactMessage(
-            job.project, kind, name, False
-        ).pack()])
+def send_fail(inst, locked_sock, job, kind, name):
+    with locked_sock as sock:
+        sock.send_multipart([b"artifact", msgs.ArtifactMessage(
+                job.project, kind, name, False
+            ).pack()])
 
 
 def parse_yaml_stream(stream):
@@ -82,7 +77,6 @@ def parse_yaml_stream(stream):
     for line in stream:
         buf += line
         if line.strip() == "...":
-            # TODO(arsen): safe_load
             yield yaml.safe_load(buf)
             buf = ""
     if len(buf) > 0:
@@ -98,6 +92,7 @@ def run_job(inst, sock, job, logfd):
     sysroot = path.join(build_dir, "system-root")
     repo_dir = path.join(build_dir, "xbps-repo")
     notify_pipe = None
+    siteyaml_file = path.join(build_dir, "bootstrap-site.yml")
     uploads = []
     def runcmd(cmd, **kwargs):
         log.debug("running command {} (params {})", cmd, kwargs)
@@ -116,17 +111,10 @@ def run_job(inst, sock, job, logfd):
         runcmd(["git", "checkout", "--detach", job.revision],
                cwd=source_dir)
 
-        # TODO(arsen): extract to xbci.utils.run_hook
-        hook_cmd = path.join(source_dir, 'ci/hook')
-        if os.access(hook_cmd, os.X_OK):
-            e = dict(os.environ.items())
-            e['SOURCE_DIR'] = source_dir
-            e['BUILD_DIR'] = build_dir
-            log.debug("running hook: {}", hook_cmd)
-            check_call([hook_cmd, "prejob"], cwd=build_dir, env=e)
+        xutils.run_hook(log, source_dir, build_dir, "prejob", outfd=logfd)
 
         runcmd(["xbstrap", "init", source_dir], cwd=build_dir)
-        with open_coop(path.join(build_dir, "bootstrap-site.yml"), "w") as siteyml:
+        with open(siteyaml_file, "w") as siteyml:
             siteyml.write('{"pkg_management":{"format":"xbps"}}\n')
         for x in job.needed_pkgs:
             check_call(["xbps-install", "-vy",
@@ -149,7 +137,7 @@ def run_job(inst, sock, job, logfd):
                    cwd=build_dir, stdin=subprocess.DEVNULL,
                    stdout=logfd, stderr=logfd,
                    pass_fds=(write_end,)) as runner, \
-             open_coop(read_end, mode="rt", buffering=1) as progress:
+             xutils.open_coop(read_end, mode="rt", buffering=1) as progress:
             # make sure that the subprocess being done makes this pipe EOF
             os.close(write_end)
             for x in parse_yaml_stream(progress):
@@ -170,7 +158,6 @@ def run_job(inst, sock, job, logfd):
                                          f"{subject}-0.0_0.x86_64.xbps")
                 else:
                     continue
-                # path.join(tools, f"{subject}.tar.gz")
                 if status == "success": 
                     uploads.append(gevent.spawn(upload,
                                 inst, sock, job, kind, subject, filename))
@@ -178,12 +165,12 @@ def run_job(inst, sock, job, logfd):
                     uploads.append(gevent.spawn(send_fail,
                                 inst, sock, job, kind, subject))
         # TODO(arsen): add some sort of way to use that exit code
-        # TODO(arsen): remove both of these
     except Exception as e:
         log.exception(f"job {job} failed due to an exception", e)
     finally:
         gevent.joinall(uploads)
         # these do not need to be async since there's no pipe waiting
+        # if some artifact wasn't done, that's an error
         for x in job.prod_pkgs:
             send_fail(inst, sock, job, "package", x)
         for x in job.prod_tools:
@@ -205,9 +192,10 @@ def run_job(inst, sock, job, logfd):
 
 
 def collect_logs(job, output, fd):
-    with open_coop(fd, "rt", buffering=1) as pipe:
+    with xutils.open_coop(fd, "rt", buffering=1) as pipe, \
+         output as sock:
         for line in pipe:
-            output.send_multipart([b"log",
+            sock.send_multipart([b"log",
                 msgs.LogMessage(
                     project=job.project,
                     job=job.job,
@@ -233,13 +221,14 @@ def main():
                 job = msgs.JobMessage.unpack(jobs.recv())
                 inst.current_project = job.project
                 inst.current_job = job.job
-                with inst.zmq.socket(zmq.PUSH) as output:
-                    output.set(zmq.LINGER, -1)
-                    output.connect(job.output)
+                with inst.zmq.socket(zmq.PUSH) as unlocked_out:
+                    unlocked_out.set(zmq.LINGER, -1)
+                    unlocked_out.connect(job.output)
+                    output = xutils.Locked(unlocked_out)
                     (logrd, logwr) = os.pipe()
                     logcoll = gevent.spawn(collect_logs, job, output, logrd)
                     try:
-                        with StreamHandler(open_coop(logwr, mode="w")):
+                        with StreamHandler(xutils.open_coop(logwr, mode="w")):
                             run_job(inst, output, job, logwr)
                     finally:
                         logcoll.join()
@@ -249,4 +238,4 @@ def main():
 if __name__ == "__main__":
     main()
 
-# TODO(arsen): notification pipe and remove artifact set transmission
+# TODO(arsen): make a clean exit
