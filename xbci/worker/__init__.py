@@ -109,6 +109,10 @@ def run_job(inst, sock, job, logfd):
         log.info("running command {} (params {})", cmd, kwargs)
         return check_call(cmd, **kwargs,
                           stdout=logfd, stderr=logfd, stdin=subprocess.DEVNULL)
+    def popencmd(cmd, **kwargs):
+        log.info("running command {} (params {})", cmd, kwargs)
+        return Popen(cmd, **kwargs,
+                     stdout=logfd, stderr=logfd, stdin=subprocess.DEVNULL)
     try:
         os.makedirs(build_dir)
         os.makedirs(source_dir)
@@ -128,10 +132,10 @@ def run_job(inst, sock, job, logfd):
         with open(siteyaml_file, "w") as siteyml:
             siteyml.write('{"pkg_management":{"format":"xbps"}}\n')
         for x in job.needed_pkgs:
-            check_call(["xbps-install", "-vy",
-                        "-R", process_repo_url(job.pkg_repo),
-                        "-r", sysroot,
-                        "-SM", x])
+            runcmd(["xbps-install", "-vy",
+                    "-R", process_repo_url(job.pkg_repo),
+                    "-r", sysroot,
+                    "-SM", x])
         for x in job.needed_tools:
             tool_dir = path.join(tools_dir, x)
             os.mkdir(tool_dir)
@@ -141,12 +145,9 @@ def run_job(inst, sock, job, logfd):
                 tar.extractall(path=tool_dir)
 
         (read_end, write_end) = os.pipe()
-        # TODO(arsen): --keep-going
-        with Popen(["xbstrap-pipeline", "run-job",
-                    "--progress-file", f"fd:{write_end}", job.job],
-                   cwd=build_dir, stdin=subprocess.DEVNULL,
-                   stdout=logfd, stderr=logfd,
-                   pass_fds=(write_end,)) as runner, \
+        with popencmd(["xbstrap-pipeline", "run-job", "--keep-going",
+                       "--progress-file", f"fd:{write_end}", job.job],
+                      cwd=build_dir, pass_fds=(write_end,)) as runner, \
              xutils.open_coop(read_end, mode="rt", buffering=1) as progress:
             # make sure that the subprocess being done makes this pipe EOF
             os.close(write_end)
