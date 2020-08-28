@@ -2,22 +2,8 @@ repo signing
 frontend
 ci/hooks
 address todos and clean up code
-__init__.py __main__.py
 docstrings
 job completion separate from artifact completion
-figure out:
-Traceback (most recent call last):
-  File "src/gevent/greenlet.py", line 854, in gevent._gevent_cgreenlet.Greenlet.run
-  File "/home/managarm_buildenv/.local/lib/python3.7/site-packages/xbci/worker/__init__.py", line 214, in collect_logs
-    line=line
-  File "/home/managarm_buildenv/.local/lib/python3.7/site-packages/zmq/green/core.py", line 250, in send_multipart
-    msg = super(_Socket, self).send_multipart(*args, **kwargs)
-  File "/home/managarm_buildenv/.local/lib/python3.7/site-packages/zmq/sugar/socket.py", line 461, in send_multipart
-    self.send(msg, SNDMORE|flags, copy=copy, track=track)
-  File "/home/managarm_buildenv/.local/lib/python3.7/site-packages/zmq/green/core.py", line 215, in send
-    self._wait_write()
-  File "/home/managarm_buildenv/.local/lib/python3.7/site-packages/zmq/green/core.py", line 124, in _wait_write
-    assert self.__writable.ready(), "Only one greenlet can be waiting on this event"
-AssertionError: Only one greenlet can be waiting on this event
-2020-08-27T11:30:03Z <Greenlet at 0x7fb34bb2e598: collect_logs(JobMessage(project='managarm', job='tool:host-pyth, <zmq.green.core._Socket object at 0x7fb34ba9da70>, 20)> failed with AssertionError
-
+figure out how to shut down coordinator and worker gracefully
+CLI access (for automation)
+web access
