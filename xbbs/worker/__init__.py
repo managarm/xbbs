@@ -11,8 +11,8 @@ import toml
 import valideer as V
 import os
 import os.path as path
-import xbci.util as xutils
-import xbci.messages as msgs
+import xbbs.util as xutils
+import xbbs.messages as msgs
 import zmq.green as zmq
 import pathlib
 import shutil
@@ -31,7 +31,7 @@ with V.parsing(required_properties=True, additional_properties=None):
 
 
 @attr.s
-class XbciWorker:
+class XbbsWorker:
     current_project = attr.ib(default=None)
     current_job = attr.ib(default=None)
     zmq = attr.ib(default=zmq.Context.instance())
@@ -217,11 +217,11 @@ def collect_logs(job, output, fd):
 def main():
     global log
     StderrHandler().push_application()
-    log = Logger('xbci.worker')
-    inst = XbciWorker()
+    log = Logger('xbbs.worker')
+    inst = XbbsWorker()
 
-    XBCI_CFG_DIR = os.getenv("XBCI_CFG_DIR", "/etc/xbci")
-    with open(path.join(XBCI_CFG_DIR, "worker.toml"), "r") as fcfg:
+    XBBS_CFG_DIR = os.getenv("XBBS_CFG_DIR", "/etc/xbbs")
+    with open(path.join(XBBS_CFG_DIR, "worker.toml"), "r") as fcfg:
         cfg = CONFIG_VALIDATOR.validate(toml.load(fcfg))
 
     log.info(cfg)

@@ -1,9 +1,9 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="xbci",
+    name="xbbs",
     version="0.0.1",
-    description="A dependency-resolving distributed CI system for xbstrap",
+    description="A dependency-resolving distributed build server for xbstrap",
     author="Arsen Arsenovic",
     author_email="arsen@aarsen.me",
     packages=find_packages(),
@@ -24,8 +24,8 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "xbci-coordinator = xbci.coordinator:main",
-            "xbci-worker = xbci.worker:main"
+            "xbbs-coordinator = xbbs.coordinator:main",
+            "xbbs-worker = xbbs.worker:main"
         ]
     }
 )

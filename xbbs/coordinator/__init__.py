@@ -21,9 +21,9 @@ import signal
 import tempfile
 import toml
 import valideer as V
-import xbci.protocol
-import xbci.messages as msgs
-import xbci.util as xutils
+import xbbs.protocol
+import xbbs.messages as msgs
+import xbbs.util as xutils
 
 # more properties are required than not
 with V.parsing(required_properties=True, additional_properties=V.Object.REMOVE):
@@ -41,7 +41,7 @@ with V.parsing(required_properties=True, additional_properties=V.Object.REMOVE):
         "intake": V.AdaptBy(_receive_adaptor),
         "workers": ["string"],
         # use something like a C identifier, except disallow underscore as a
-        # first character too. this is so that we have a namespace for xbci
+        # first character too. this is so that we have a namespace for xbbs
         # internal directories, such as collection directories
         "projects": V.Mapping(re.compile("[a-zA-Z][_a-zA-Z0-9]{0,30}"), {
             "git": "string",
@@ -70,8 +70,8 @@ class Project:
     current = attr.ib(default=None)
     last_run = attr.ib(default=None)
 
-    def base(self, xbci):
-        return path.join(xbci.project_base, self.name)
+    def base(self, xbbs):
+        return path.join(xbbs.project_base, self.name)
 
     def logfile(self, inst, job):
         tsdir = path.join(self.base(inst),
@@ -80,7 +80,7 @@ class Project:
         return path.join(tsdir, f"{job}.log")
 
 @attr.s
-class Xbci:
+class Xbbs:
     project_base = attr.ib()
     collection_dir = attr.ib()
     tmp_dir = attr.ib()
@@ -95,7 +95,7 @@ class Xbci:
     @classmethod
     def create(cls, cfg):
         pbase = cfg["project_base"]
-        inst = Xbci(
+        inst = Xbbs(
             project_base=pbase,
             collection_dir=path.join(pbase, "_coldir"),
             tmp_dir=path.join(pbase, "_tmp"),
@@ -322,7 +322,7 @@ def command_loop(inst, sock_cmd):
         except zmq.ZMQError as e:
             log.exception("command loop i/o error, aborting")
             return
-        except xbci.protocol.ProtocolError as e:
+        except xbbs.protocol.ProtocolError as e:
             log.exception("comand processing error", e)
             sock_cmd.send_multipart([str(e.code).encode(),
                                      f"{type(e).__name__}: {e}".encode()])
@@ -447,9 +447,9 @@ intake_loop.cmds = {
 }
 
 
-def dump_projects(xbci):
+def dump_projects(xbbs):
     running = 0
-    for name, proj in xbci.projects.items():
+    for name, proj in xbbs.projects.items():
         if not proj.current:
             continue
         running += 1
@@ -459,13 +459,13 @@ def dump_projects(xbci):
 def main():
     global log
     StderrHandler().push_application()
-    log = Logger("xbci.coordinator")
+    log = Logger("xbbs.coordinator")
 
-    XBCI_CFG_DIR = os.getenv("XBCI_CFG_DIR", "/etc/xbci")
-    with open(path.join(XBCI_CFG_DIR, "coordinator.toml"), "r") as fcfg:
+    XBBS_CFG_DIR = os.getenv("XBBS_CFG_DIR", "/etc/xbbs")
+    with open(path.join(XBBS_CFG_DIR, "coordinator.toml"), "r") as fcfg:
         cfg = CONFIG_VALIDATOR.validate(toml.load(fcfg))
 
-    inst = Xbci.create(cfg)
+    inst = Xbbs.create(cfg)
 
     for name, elem in cfg["projects"].items():
         inst.projects[name] = Project(name, **elem)
