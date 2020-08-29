@@ -1,9 +1,8 @@
 repo signing
 frontend
-ci/hooks
+additional hooks
 address todos and clean up code
-docstrings
+docstrings for most functions
 job completion separate from artifact completion
 figure out how to shut down coordinator and worker gracefully
 CLI access (for automation)
-web access
