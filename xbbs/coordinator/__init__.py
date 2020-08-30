@@ -25,6 +25,17 @@ import xbbs.protocol
 import xbbs.messages as msgs
 import xbbs.util as xutils
 
+
+def check_call_logged(cmd, **kwargs):
+    log.info("running command {} (params {})", cmd, kwargs)
+    return subprocess.check_call(cmd, **kwargs)
+
+
+def check_output_logged(cmd, **kwargs):
+    log.info("running command {} (params {})", cmd, kwargs)
+    return subprocess.check_output(cmd, **kwargs)
+
+
 # more properties are required than not
 with V.parsing(required_properties=True, additional_properties=V.Object.REMOVE):
     @V.accepts(x=V.AnyOf("string", {"bind": "string", "connect": "string"}))
@@ -257,15 +268,15 @@ def run_project(inst, project):
     projdir = path.join(project.base(inst), 'repo')
     os.makedirs(projdir, exist_ok=True)
     if not path.isdir(path.join(projdir, ".git")):
-        subprocess.check_call(["git", "init"], cwd=projdir)
-        subprocess.check_call(["git", "remote", "add", "origin", project.git],
-                cwd=projdir)
-    subprocess.check_call(["git", "fetch", "origin"], cwd=projdir)
+        check_call_logged(["git", "init"], cwd=projdir)
+        check_call_logged(["git", "remote", "add", "origin", project.git],
+                          cwd=projdir)
+    check_call_logged(["git", "fetch", "origin"], cwd=projdir)
     # TODO(arsen): support non-master builds
-    subprocess.check_call(["git", "checkout", "--detach", "origin/master"],
-            cwd=projdir)
-    rev = subprocess.check_output(["git", "rev-parse", "HEAD"],
-                                  cwd=projdir).decode().strip()
+    check_call_logged(["git", "checkout", "--detach", "origin/master"],
+                      cwd=projdir)
+    rev = check_output_logged(["git", "rev-parse", "HEAD"],
+                              cwd=projdir).decode().strip()
     tool_repo = path.join(project.base(inst), 'tool_repo')
     package_repo = path.join(project.base(inst), 'package_repo')
     # TODO(arsen): remove to support incremental compilation
@@ -275,10 +286,11 @@ def run_project(inst, project):
         shutil.rmtree(package_repo)
     with tempfile.TemporaryDirectory(dir=inst.tmp_dir) as td:
         xutils.run_hook(log, projdir, td, "pregraph")
-        subprocess.check_call(["xbstrap", "init", projdir], cwd=td)
-        graph = json.loads(subprocess.check_output(["xbstrap-pipeline",
-            "compute-graph", "--artifacts", "--json"],
-            cwd=td).decode())
+        check_call_logged(["xbstrap", "init", projdir], cwd=td)
+        graph = json.loads(check_output_logged(["xbstrap-pipeline",
+                                                "compute-graph",
+                                                "--artifacts", "--json"],
+                                                cwd=td).decode())
         graph = GRAPH_VALIDATOR.validate(graph)
         project.current = RunningProject.parse_graph(project, rev, graph)
         try:
@@ -395,9 +407,8 @@ def cmd_artifact(inst, value):
             artifact_file = path.join(repo, message.filename)
             shutil.move(target, artifact_file)
             if artifact.kind == Artifact.Kind.PACKAGE:
-                subprocess.check_call(["xbps-rindex", "-fa",
-                    path.join(artifact_file)])
             # TODO(arsen): sign repo
+                check_call_logged(["xbps-rindex", "-fa", artifact_file])
         except Exception as e:
             log.exception("artifact deposit failed", e)
             artifact.failed = True
