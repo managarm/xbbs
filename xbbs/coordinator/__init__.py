@@ -14,6 +14,7 @@ import msgpack
 import zmq.green as zmq
 import os
 import os.path as path
+import plistlib
 import re
 import subprocess
 import shutil
@@ -44,6 +45,10 @@ with V.parsing(required_properties=True, additional_properties=V.Object.REMOVE):
             return {"bind": x, "connect": x}
         return x
 
+    @V.accepts(x="string")
+    def _path_exists(x):
+        return os.access(x, os.R_OK)
+
     # TODO(arsen): write an endpoint validator for workers
     CONFIG_VALIDATOR = V.parse({
         "command_endpoint": "string",
@@ -54,13 +59,18 @@ with V.parsing(required_properties=True, additional_properties=V.Object.REMOVE):
         # use something like a C identifier, except disallow underscore as a
         # first character too. this is so that we have a namespace for xbbs
         # internal directories, such as collection directories
-        "projects": V.Mapping(re.compile("[a-zA-Z][_a-zA-Z0-9]{0,30}"), {
+        "projects": V.Mapping(re.compile("^[a-zA-Z][_a-zA-Z0-9]{0,30}$"), {
             "git": "string",
             "?description": "string",
             "?classes": V.Nullable(["string"], []),
             "packages": "string",
+            "?fingerprint": "string",
             "tools": "string"
         })
+    })
+    PUBKEY_VALIDATOR = V.parse({
+        # I'm only validating the keys that xbbs uses
+        "signature-by": "string"
     })
 
 with V.parsing(required_properties=True, additional_properties=None):
@@ -78,6 +88,7 @@ class Project:
     classes = attr.ib()
     packages = attr.ib()
     tools = attr.ib()
+    fingerprint = attr.ib(default=None)
     current = attr.ib(default=None)
     last_run = attr.ib(default=None)
 
@@ -228,6 +239,15 @@ def solve_project(inst, projinfo, project):
             needed_pkgs = [x.name for x in job.deps if x.kind is Artifact.Kind.PACKAGE]
             prod_tools = [x.name for x in job.products if x.kind is Artifact.Kind.TOOL]
             prod_pkgs = [x.name for x in job.products if x.kind is Artifact.Kind.PACKAGE]
+            keys = None
+            if projinfo.fingerprint:
+                pubkey = path.join(projinfo.base(inst),
+                                   f"{projinfo.fingerprint}.plist")
+                with open(pubkey, "rb") as pkf:
+                    # XXX: this is not cooperative, and should be okay because
+                    # it's a small amount of data
+                    keys = { projinfo.fingerprint: pkf.read() }
+
             job.status = Job.Status.RUNNING
             jobreq = msgs.JobMessage(
                 project=project.name,
@@ -241,7 +261,8 @@ def solve_project(inst, projinfo, project):
                 prod_pkgs=prod_pkgs,
                 prod_tools=prod_tools,
                 tool_repo=projinfo.tools,
-                pkg_repo=projinfo.packages
+                pkg_repo=projinfo.packages,
+                xbps_keys=keys
             )
             log.debug("sending job request {}", jobreq)
             inst.pipeline.send(jobreq.pack())
@@ -372,6 +393,29 @@ def cmd_chunk(inst, value):
 cmd_chunk.table = {}
 
 
+def maybe_sign_artifact(inst, artifact, project):
+    if not project.fingerprint:
+        return
+    base = project.base(inst)
+    privkey = path.join(base, f"{project.fingerprint}.rsa")
+    pubkey = path.join(base, f"{project.fingerprint}.plist")
+    # XXX: this is not cooperative, and should be okay because
+    # it's a small amount of data
+    with open(pubkey, "rb") as pkf:
+        pkeydata = PUBKEY_VALIDATOR.validate(plistlib.load(pkf))
+    signed_by = pkeydata["signature-by"]
+    check_call_logged(["xbps-rindex",
+                       "--signedby", signed_by,
+                       "--privkey", privkey,
+                       "-s", path.dirname(artifact)])
+    check_call_logged(["xbps-rindex",
+                       "--signedby", signed_by,
+                       "--privkey", privkey,
+                       "-S", artifact])
+    # XXX: a sanity check here? extract the key from repodata and compare with
+    # "{project.fingerprint}.plist"s key and signer
+
+
 def cmd_artifact(inst, value):
     "handle receiving an artifact"
     message = msgs.ArtifactMessage.unpack(value)
@@ -387,8 +431,10 @@ def cmd_artifact(inst, value):
             return
 
         aset = run.tool_set if message.artifact_type == "tool" else run.pkg_set
-        repo = path.join(proj.base(inst), f"{message.artifact_type}_repo")
+        repo = path.abspath(path.join(proj.base(inst),
+                            f"{message.artifact_type}_repo"))
         os.makedirs(repo, exist_ok=True)
+
         if message.artifact not in aset:
             return
 
@@ -407,8 +453,8 @@ def cmd_artifact(inst, value):
             artifact_file = path.join(repo, message.filename)
             shutil.move(target, artifact_file)
             if artifact.kind == Artifact.Kind.PACKAGE:
-            # TODO(arsen): sign repo
                 check_call_logged(["xbps-rindex", "-fa", artifact_file])
+                maybe_sign_artifact(inst, artifact_file, proj)
         except Exception as e:
             log.exception("artifact deposit failed", e)
             artifact.failed = True
@@ -434,6 +480,8 @@ def cmd_log(inst, value):
     if not inst.projects[message.project].last_run:
         return
 
+    # XXX: this is not cooperative, and should be okay because
+    # it's a small amount of data
     with open(proj.logfile(inst, message.job), mode="a") as logfile:
         logfile.write(message.line)
 

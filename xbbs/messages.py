@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 import attr
+import msgpack
 import valideer as V
-import msgpack
-import msgpack
+import re
 
 
 class BaseMessage:
@@ -64,6 +64,8 @@ class JobMessage(BaseMessage):
     prod_tools = attr.ib()
     tool_repo = attr.ib()
     pkg_repo = attr.ib()
+    # XXX: maybe it's worth doing something else
+    xbps_keys = attr.ib(default=None, repr=False)
     _validator = V.parse({
         "project": "string",
         "job": "string",
@@ -77,6 +79,9 @@ class JobMessage(BaseMessage):
         "prod_tools": ["string"],
         "tool_repo": "string",
         "pkg_repo": "string",
+        "?xbps_keys": V.Mapping(
+            re.compile("^([a-zA-Z0-9]{2}:){15}[a-zA-Z0-9]{2}$"), bytes
+        )
     })
 
 def _is_blake2b_digest(x):

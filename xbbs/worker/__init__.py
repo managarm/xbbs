@@ -131,6 +131,14 @@ def run_job(inst, sock, job, logfd):
         runcmd(["xbstrap", "init", source_dir], cwd=build_dir)
         with open(siteyaml_file, "w") as siteyml:
             siteyml.write('{"pkg_management":{"format":"xbps"}}\n')
+        if job.xbps_keys:
+            # XXX: this assumes standard xbps paths relative to sysroot
+            keysdir = path.join(sysroot, "var/db/xbps/keys")
+            os.makedirs(keysdir)
+            for fingerprint, pubkey in job.xbps_keys.items():
+                keyfile = path.join(keysdir, f"{fingerprint}.plist")
+                with open(keyfile, "wb") as pkf:
+                    pkf.write(pubkey)
         for x in job.needed_pkgs:
             runcmd(["xbps-install", "-vy",
                     "-R", process_repo_url(job.pkg_repo),
@@ -171,7 +179,7 @@ def run_job(inst, sock, job, logfd):
                                          f"{subject}-0.0_0.x86_64.xbps")
                 else:
                     continue
-                if status == "success": 
+                if status == "success":
                     repglet = gevent.spawn(upload,
                                            inst, sock, job, kind, subject,
                                            filename)
@@ -184,7 +192,7 @@ def run_job(inst, sock, job, logfd):
     except KeyboardInterrupt:
         raise
     except Exception as e:
-        log.exception(f"job {job} failed due to an exception", e)
+        log.exception("job {} failed due to an exception", job)
     finally:
         gevent.joinall(uploads)
         # these do not need to be async since there's no pipe waiting
