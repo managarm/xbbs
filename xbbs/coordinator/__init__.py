@@ -20,6 +20,7 @@ import subprocess
 import shutil
 import signal
 import tempfile
+import time
 import toml
 import valideer as V
 import xbbs.protocol
@@ -95,10 +96,12 @@ class Project:
     def base(self, xbbs):
         return path.join(xbbs.project_base, self.name)
 
-    def logfile(self, inst, job):
+    def log(self, inst, job=None):
         tsdir = path.join(self.base(inst),
                           self.last_run.isoformat(timespec="seconds"))
         os.makedirs(tsdir, exist_ok=True)
+        if not job:
+            return tsdir
         return path.join(tsdir, f"{job}.log")
 
 @attr.s
@@ -315,9 +318,16 @@ def run_project(inst, project):
         graph = GRAPH_VALIDATOR.validate(graph)
         project.current = RunningProject.parse_graph(project, rev, graph)
         try:
-            log.info("job {} done; success? {}",
-                     project.name,
-                     solve_project(inst, project, project.current))
+            start = time.monotonic()
+            success = solve_project(inst, project, project.current)
+            length = time.monotonic() - start
+            log.info("job {} done; success? {} in {}s",
+                     project.name, success, length)
+            coordfile = path.join(project.log(inst), "coordinator")
+            with open(coordfile, "w") as csf:
+                json.dump({"success": success,
+                           "run_time": length,
+                           "graph": graph}, csf, indent=4)
         finally:
             project.current = None
 
@@ -482,7 +492,7 @@ def cmd_log(inst, value):
 
     # XXX: this is not cooperative, and should be okay because
     # it's a small amount of data
-    with open(proj.logfile(inst, message.job), mode="a") as logfile:
+    with open(proj.log(inst, message.job), mode="a") as logfile:
         logfile.write(message.line)
 
 
