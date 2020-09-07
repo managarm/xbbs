@@ -15,7 +15,10 @@ class BaseMessage:
         x = msgpack.loads(data)
         # use adaption for nested data
         x = cls._validator.validate(x)
-        return cls(**x)
+        val = cls(**x)
+        val._dictvalue = x
+        return val
+
 
 _thing = V.parsing(required_properties=True, additional_properties=None)
 _thing.__enter__()
@@ -128,6 +131,35 @@ class ChunkMessage(BaseMessage):
     _validator = V.parse({
         "last_hash": _last_hash_validator,
         "data": bytes
+    })
+
+@attr.s
+class JobCompletionMessage(BaseMessage):
+    project = attr.ib()
+    job = attr.ib()
+    exit_code = attr.ib()
+    run_time = attr.ib()
+    _validator = V.parse({
+        "project": "string",
+        "job": "string",
+        "exit_code": "number",
+        "run_time": "number"
+    })
+
+@attr.s
+class StatusMessage(BaseMessage):
+    hostname = attr.ib()
+    load = attr.ib()
+    projects = attr.ib()
+    _validator = V.parse({
+        "hostname": "string",
+        "load": V.AdaptTo(tuple, ("number", "number", "number")),
+        "projects": V.Mapping("string", {
+            "git": "string",
+            "description": "string",
+            "classes": ["string"],
+            "running": "boolean"
+        })
     })
 
 _thing.__exit__(None, None, None)

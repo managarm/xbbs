@@ -6,6 +6,12 @@ import gevent.lock as glock
 import subprocess
 import os
 import os.path as path
+import re
+
+
+PROJECT_REGEX = re.compile("^[a-zA-Z][_a-zA-Z0-9]{0,30}$")
+TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S"
+
 
 def run_hook(log, source_dir, build_dir, name, *, outfd=None):
     hook_cmd = path.join(source_dir, 'ci/hook')
@@ -18,12 +24,14 @@ def run_hook(log, source_dir, build_dir, name, *, outfd=None):
                               stdin=subprocess.DEVNULL,
                               stdout=outfd, stderr=outfd)
 
+
 # this does not help with normal files
 def open_coop(*args, **kwargs):
     # XXX: add fd check?
     f = gfobj.FileObjectPosix(*args, **kwargs)
     fcntl.fcntl(f, fcntl.F_SETFL, os.O_NDELAY)
     return f
+
 
 @attr.s
 class Locked:

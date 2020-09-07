@@ -20,7 +20,8 @@ setup(
         "logbook",
         "msgpack",
         "valideer",
-        "requests"
+        "requests",
+        "humanize"
     ],
     entry_points={
         "console_scripts": [

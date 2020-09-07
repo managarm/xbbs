@@ -15,12 +15,13 @@ import xbbs.util as xutils
 import xbbs.messages as msgs
 import zmq.green as zmq
 import pathlib
+import requests
 import shutil
 from socket import getfqdn
 from subprocess import check_call, Popen
-import requests
 import subprocess
 import tarfile
+import time
 from urllib.parse import urlparse
 import yaml
 
@@ -96,6 +97,8 @@ def process_repo_url(url):
 
 # TODO(arsen): all output needs to be redirected to a pty
 def run_job(inst, sock, job, logfd):
+    start = time.monotonic()
+    code = -1.0
     log.info("running job {}", job)
     build_dir = path.normpath(job.build_root)
     source_dir = f"{build_dir}.src"
@@ -188,6 +191,7 @@ def run_job(inst, sock, job, logfd):
                                            inst, sock, job, kind, subject)
                 uploads.append(repglet)
                 repglet.link(lambda g, p=prod_set, s=subject: p.remove(s))
+        code = runner.returncode
         log.info("job done. return code: {}", runner.returncode)
     except KeyboardInterrupt:
         raise
@@ -201,6 +205,13 @@ def run_job(inst, sock, job, logfd):
             send_fail(inst, sock, job, "package", x)
         for x in job.prod_tools:
             send_fail(inst, sock, job, "tool", x)
+        with sock as us:
+            us.send_multipart([b"job", msgs.JobCompletionMessage(
+                project=job.project,
+                job=job.job,
+                exit_code=code,
+                run_time=time.monotonic() - start
+            ).pack()])
         try:
             shutil.rmtree(build_dir)
         except FileNotFoundError:

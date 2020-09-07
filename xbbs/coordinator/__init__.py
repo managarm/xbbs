@@ -10,7 +10,7 @@ from enum import Enum
 from hashlib import blake2b
 import json
 from logbook import Logger, StderrHandler
-import msgpack
+import msgpack as msgpk
 import zmq.green as zmq
 import os
 import os.path as path
@@ -19,6 +19,7 @@ import re
 import subprocess
 import shutil
 import signal
+import socket
 import tempfile
 import time
 import toml
@@ -46,6 +47,7 @@ with V.parsing(required_properties=True, additional_properties=V.Object.REMOVE):
             return {"bind": x, "connect": x}
         return x
 
+
     @V.accepts(x="string")
     def _path_exists(x):
         return os.access(x, os.R_OK)
@@ -60,7 +62,7 @@ with V.parsing(required_properties=True, additional_properties=V.Object.REMOVE):
         # use something like a C identifier, except disallow underscore as a
         # first character too. this is so that we have a namespace for xbbs
         # internal directories, such as collection directories
-        "projects": V.Mapping(re.compile("^[a-zA-Z][_a-zA-Z0-9]{0,30}$"), {
+        "projects": V.Mapping(xutils.PROJECT_REGEX, {
             "git": "string",
             "?description": "string",
             "?classes": V.Nullable(["string"], []),
@@ -81,6 +83,7 @@ with V.parsing(required_properties=True, additional_properties=None):
         "needed":   {"tools": ["string"], "pkgs": ["string"]}
     }))
 
+
 @attr.s
 class Project:
     name = attr.ib()
@@ -96,13 +99,21 @@ class Project:
     def base(self, xbbs):
         return path.join(xbbs.project_base, self.name)
 
+
     def log(self, inst, job=None):
         tsdir = path.join(self.base(inst),
-                          self.last_run.isoformat(timespec="seconds"))
+                          self.last_run.strftime(xutils.TIMESTAMP_FORMAT))
         os.makedirs(tsdir, exist_ok=True)
         if not job:
             return tsdir
         return path.join(tsdir, f"{job}.log")
+
+
+    def info(self, inst, job=None):
+        tsdir = path.join(self.base(inst),
+                          self.last_run.strftime(xutils.TIMESTAMP_FORMAT))
+        os.makedirs(tsdir, exist_ok=True)
+        return path.join(tsdir, f"{job}.info")
 
 @attr.s
 class Xbbs:
@@ -143,13 +154,18 @@ class Artifact:
 class Job:
     # TODO(arsen): RUNNING is actually waiting to finish: it might say it's
     # running, but it's proobably not, and is instead stuck in the pipeline
-    Status = Enum("Status", "WAITING RUNNING DONE")
+    Status = Enum("Status", "WAITING RUNNING WAITING_FOR_DONE FAILED SUCCESS")
     deps = attr.ib(factory=list)
     products = attr.ib(factory=list)
     status = attr.ib(default=Status.WAITING)
+    exit_code = attr.ib(default=None)
+    run_time = attr.ib(default=None)
 
     def fail(self, graph):
-        self.status = Job.Status.DONE
+        if self.status == Job.Status.RUNNING:
+            self.status = Job.Status.WAITING_FOR_DONE
+        else:
+            self.status = Job.Status.FAILED
 
         for prod in self.products:
             if prod.failed:
@@ -206,15 +222,47 @@ class RunningProject:
         return proj
 
 
-def solve_project(inst, projinfo, project):
+class ArtifactEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Artifact.Kind):
+            return obj.name
+        return super().default(obj)
+
+def store_jobs(inst, projinfo, *, success=None, length=None):
+    coordfile = path.join(projinfo.log(inst), "coordinator")
+    job_info = {}
+    for name, job in projinfo.current.jobs.items():
+        current = {
+            "status": job.status.name,
+            "deps": [attr.asdict(x) for x in job.deps],
+            "products": [attr.asdict(x) for x in job.products]
+        }
+        job_info[name] = current
+        if job.exit_code is not None:
+            current.update(exit_code=job.exit_code)
+        if job.run_time is not None:
+            current.update(run_time=job.run_time)
+    # TODO(arsen): store more useful graph
+    state = {
+        "jobs": job_info
+    }
+    if success is not None:
+        state.update(success=success, run_time=length)
+    with open(coordfile, "w") as csf:
+        json.dump(state, csf, indent=4, cls=ArtifactEncoder)
+
+
+def solve_project(inst, projinfo):
+    project = projinfo.current
     while True:
         project.artifact_received.clear()
         some_waiting = False
         for name, job in project.jobs.items():
-            if all([x.received for x in job.products]):
-                job.status = Job.Status.DONE
+            if all([x.received for x in job.products]) and \
+               job.status == Job.Status.RUNNING:
+                job.status = Job.Status.WAITING_FOR_DONE
 
-            if job.status is not Job.Status.DONE:
+            if job.status not in [Job.Status.SUCCESS, Job.Status.FAILED]:
                 some_waiting = True
 
             if job.status is not Job.Status.WAITING:
@@ -270,13 +318,19 @@ def solve_project(inst, projinfo, project):
             log.debug("sending job request {}", jobreq)
             inst.pipeline.send(jobreq.pack())
 
+        store_jobs(inst, projinfo)
+
         # TODO(arsen): handle the edge case in which workers are dead
         if not some_waiting:
-            assert all(x.status == Job.Status.DONE for x in project.jobs.values())
             assert all(x.received for x in project.tool_set.values())
             assert all(x.received for x in project.pkg_set.values())
+            assert all(x.status in [Job.Status.SUCCESS, Job.Status.FAILED]
+                       for x in project.jobs.values())
             return all(not x.failed for x in project.tool_set.values()) and \
-                   all(not x.failed for x in project.pkg_set.values())
+                   all(not x.failed for x in project.pkg_set.values()) and \
+                   all(x.status == Job.Status.SUCCESS
+                       for x in project.jobs.values())
+
         project.artifact_received.wait()
 
 # TODO(arsen): a better log collection system. It should include the output of
@@ -315,25 +369,20 @@ def run_project(inst, project):
                                                 "compute-graph",
                                                 "--artifacts", "--json"],
                                                 cwd=td).decode())
-        graph = GRAPH_VALIDATOR.validate(graph)
         project.current = RunningProject.parse_graph(project, rev, graph)
         try:
             start = time.monotonic()
-            success = solve_project(inst, project, project.current)
+            success = solve_project(inst, project)
             length = time.monotonic() - start
             log.info("job {} done; success? {} in {}s",
                      project.name, success, length)
-            coordfile = path.join(project.log(inst), "coordinator")
-            with open(coordfile, "w") as csf:
-                json.dump({"success": success,
-                           "run_time": length,
-                           "graph": graph}, csf, indent=4)
+            store_jobs(inst, project, success=success, length=length)
         finally:
             project.current = None
 
 def cmd_build(inst, name):
     "handle starting a new build on a project by name"
-    name = msgpack.loads(name)
+    name = msgpk.loads(name)
     if not name in inst.projects:
         return 404, b"unknown project"
     proj = inst.projects[name]
@@ -341,13 +390,31 @@ def cmd_build(inst, name):
         return 409, b"project already running"
     gevent.spawn(run_project, inst, proj)
 
+
+def cmd_status(inst, _):
+    projmap = {}
+    for x in inst.projects.values():
+        projmap[x.name] = {
+            "git": x.git,
+            "description": x.description,
+            "classes": x.classes,
+            "running": bool(x.current)
+        }
+    return msgs.StatusMessage(
+        projects=projmap,
+        hostname=socket.gethostname(),
+        load=os.getloadavg()
+    ).pack()
+
+
 def command_loop(inst, sock_cmd):
     while inst.running:
         try:
             [command, arg] = sock_cmd.recv_multipart()
             command = command.decode("us-ascii")
             if not command in command_loop.cmds:
-                sock_cmd.send_multipart([b"400", b"no such command"])
+                sock_cmd.send_multipart([b"400",
+                                         msgpk.dumps("no such command")])
                 continue
 
             code = "200"
@@ -368,19 +435,20 @@ def command_loop(inst, sock_cmd):
         except xbbs.protocol.ProtocolError as e:
             log.exception("comand processing error", e)
             sock_cmd.send_multipart([str(e.code).encode(),
-                                     f"{type(e).__name__}: {e}".encode()])
+                                     msgpk.dumps(f"{type(e).__name__}: {e}")])
         except V.ValidationError as e:
             log.exception("command processing error", e)
             sock_cmd.send_multipart([b"400",
-                                     f"{type(e).__name__}: {e}".encode()])
+                                     msgpk.dumps(f"{type(e).__name__}: {e}")])
         except Exception as e:
             log.exception("comand processing error", e)
             sock_cmd.send_multipart([b"500",
-                                     f"{type(e).__name__}: {e}".encode()])
+                                     msgpk.dumps(f"{type(e).__name__}: {e}")])
 
 
 command_loop.cmds = {
-    "build": cmd_build
+    "build": cmd_build,
+    "status": cmd_status
 }
 
 
@@ -496,6 +564,27 @@ def cmd_log(inst, value):
         logfile.write(message.line)
 
 
+def cmd_job(inst, value):
+    message = msgs.JobCompletionMessage.unpack(value)
+    log.debug("got job message {}", message)
+    if not message.project in inst.projects:
+        return
+    proj = inst.projects[message.project]
+    if not proj.last_run:
+        return
+
+    job = proj.current.jobs[message.job]
+    if message.exit_code == 0:
+        job.status = Job.Status.SUCCESS
+    else:
+        job.status = Job.Status.FAILED
+    job.exit_code = message.exit_code
+    job.run_time = message.run_time
+    proj.current.artifact_received.set()
+    with open(proj.info(inst, message.job), mode="a") as infofile:
+        json.dump(message._dictvalue, infofile, indent=4)
+
+
 def intake_loop(inst):
     while inst.running:
         try:
@@ -512,6 +601,7 @@ def intake_loop(inst):
 intake_loop.cmds = {
     "chunk": cmd_chunk,
     "artifact": cmd_artifact,
+    "job": cmd_job,
     "log": cmd_log
 }
 
