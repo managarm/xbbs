@@ -20,18 +20,6 @@ body {
 	flex-direction: column;
 }
 
-@media only screen and ((min-width: 768px) or (orientation: landscape)) {
-.container {
-	flex-direction: row !important;
-}
-#col1 {
-	max-width: 20%;
-	border-bottom: 0 !important;
-	border-right: 1px solid #111;
-	flex-grow: 1;
-}
-}
-
 #col1 {
 	border-bottom: 1px solid #111;
 	margin: 2.5px;
@@ -51,6 +39,19 @@ pre {
 [id^="col"] {
 	margin: 0 0;
 	padding: 0 0;
+}
+
+@media only screen and ((min-width: 768px) or (orientation: landscape)) {
+	.container {
+		flex-direction: row;
+	}
+
+	#col1 {
+		max-width: 20%;
+		border-bottom: 0;
+		border-right: 1px solid #111;
+		flex-grow: 1;
+	}
 }
 
 .success {
