@@ -114,6 +114,6 @@ iframe.seamless {
 	background: #eee;
 }
 
-.onethree-cols > tbody > tr > td:nth-child(odd) {
+.onethree-cols > tbody > tr > td:nth-child(1) {
 	width: 25%;
 }
