@@ -47,7 +47,7 @@ pre {
 	}
 
 	#col1 {
-		max-width: 20%;
+		max-width: 25%;
 		border-bottom: 0;
 		border-right: 1px solid #111;
 		flex-grow: 1;
@@ -117,4 +117,8 @@ iframe.seamless {
 
 .onethree-cols > tbody > tr > td:nth-child(1) {
 	width: 25%;
+}
+
+.project-name {
+	vertical-align: top;
 }

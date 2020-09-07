@@ -3,13 +3,14 @@
 {%- block title %}Overview{%- endblock %}
 {%- block col1 %}
 	<h3>Project list</h3>
-	<ul id="project-list">
+	<table id="project-list" class="color-rows">
 {%- for name, item in projects.items() %}
-		<li class="project-item {{ item.classes|join(' ') }}">
-			<strong>{{ name }}</strong> - {{ item.description }}
-		</li>
+		<tr class="project-item {{ item.classes|join(' ') }}">
+			<td class="project-name">{{ name }}</td>
+			<td class="project-desc">{{ item.description }}</td>
+		</tr>
 {%- endfor %}
-	</ul>
+	</table>
 {%- endblock %}
 {%- block col2 %}
 	<h3>Recent build history</h3>
