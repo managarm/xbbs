@@ -1,0 +1,20 @@
+{%- extends "base.html" %}
+{%- import "macros.html" as macros %}
+{%- block title %}
+Logs for {{ project }}/{{ job }} @ {{ ts }}
+{%- endblock %}
+{%- block col1 %}
+	<h3>Log view</h3>
+	<strong>for {{ project }}/{{ job }}</strong>
+	<br>{{ ts|humanizeiso }}<br>
+	{{ macros.build_status(build) }}
+{%- endblock %}
+{%- block col2 %}
+	<iframe class="seamless" src="{{ raw }}" title="{{ job }} log"
+		onload="this.contentWindow.scroll(0, this.contentWindow.scrollMaxY)">
+		get a better browser
+	</iframe>
+{%- endblock %}
+
+{# vim: ft=htmldjango :
+#}

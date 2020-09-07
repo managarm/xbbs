@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>{%- block title %}{% endblock %} - xbbs @ {{ host }}</title>
+	<link rel="stylesheet" href="/static/base_style.css">
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body>
+	<header>
+		<a href="{{ url_for("overview") }}">xbbs
+		@ {{ host }}</a> (load: {{ load|join(", ") }})
+	</header>
+	{%- block body %}
+	<div class="container">
+		<div id="col1">{% block col1 %}{% endblock %}</div>
+		<div id="col2">{% block col2 %}{% endblock %}</div>
+	</div>
+	{%- endblock %}
+	<footer>
+		xbbs &copy; 2020&nbsp;&nbsp;Arsen Arsenović<br>
+		xbbs is Free Software, licensed under the GNU Affero General
+		Public License, version 3. Source code is available
+		<a href="https://owo.codes/ArsenArsen/xbbs">here</a>
+	</footer>
+</body>
+</html>
+{# vim: ft=htmldjango :
+#}

@@ -1,0 +1,34 @@
+{%- extends "base.html" %}
+{%- import "macros.html" as macros %}
+{%- block title %}Overview{%- endblock %}
+{%- block col1 %}
+	<h3>Project list</h3>
+	<ul id="project-list">
+{%- for name, item in projects.items() %}
+		<li class="project-item {{ item.classes|join(' ') }}">
+			<strong>{{ name }}</strong> - {{ item.description }}
+		</li>
+{%- endfor %}
+	</ul>
+{%- endblock %}
+{%- block col2 %}
+	<h3>Recent build history</h3>
+	<ul id="history">
+{%- for build in history %}
+	<li class="build-item {{ build.classes|join(' ') }}">
+		<strong>{{ build.project }},
+		started {{ build.timestamp|humanizeiso }}</strong>
+{%- if build.jobs %}
+		<a href="{{ build.jobs }}">[jobs]</a>
+{%- endif %}
+{%- if build.log %}
+		<a href="{{ build.log }}">[logs]</a>
+{%- endif %}
+		<br>
+		{{ macros.build_status(build) }}
+	</li>
+{%- endfor %}
+	</ul>
+{%- endblock %}
+{# vim: ft=htmldjango :
+#}

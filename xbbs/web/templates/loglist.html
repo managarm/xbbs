@@ -1,0 +1,24 @@
+{%- extends "base.html" %}
+{%- import "macros.html" as macros %}
+{%- block title %}
+Logs for {{ project }}/{{ artifact }} @ {{ ts }}
+{%- endblock %}
+{%- block col1 %}
+	<h3>Available logs for {{ project }}</h3>
+	Started {{ ts|humanizeiso }}
+	{{ macros.build_status(build) }}
+{%- endblock %}
+{%- block col2 %}
+	<ul>
+{%- for build in jobs %}
+	<li>
+		{{ macros.build_status_short(build) }}
+		<a href="{{ build.link }}">[log]</a>
+		<code>{{ build.job }}</code>
+	</li>
+{%- endfor %}
+	</ul>
+{%- endblock %}
+
+{# vim: ft=htmldjango :
+#}

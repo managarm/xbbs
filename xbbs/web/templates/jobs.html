@@ -1,0 +1,89 @@
+{%- extends "base.html" %}
+{%- import "macros.html" as macros %}
+{%- macro kind_status(product) %}
+{%- if not product.received %}
+<div class="running artifact-kind">
+{%- elif product.failed %}
+<div class="failed artifact-kind">
+{%- else %}
+<div class="success artifact-kind">
+{%- endif %}
+	<code>{{ product.kind|capitalize }}</code>
+</div>
+{%- endmacro %}
+{%- block title %}Job view for {{ project }}{%- endblock %}
+{%- block col1 %}
+<h3>Job view</h3>
+	<strong>for {{ project }}</strong>
+	<br>{{ ts|humanizeiso }}<br>
+	{{ macros.build_status(build) }}
+{%- endblock %}
+{%- block col2 %}
+	<table class="color-rows fullwidth onethree-cols">
+{%- for name, job in build.jobs.items() %}
+	<tr>
+		<td style="vertical-align: top;">
+{%- for product in job.products %}
+			<a id="prod-{{ product.kind }}-{{ product.name }}"></a>
+{%- endfor %}
+			<code>{{ name }}</code>
+{%- if job.status == "FAILED" %}
+			<div class="failed">Failure</div>
+{%- elif job.status == "SUCCESS" %}
+			<div class="success">Success</div>
+{%- elif job.status == "WAITING_FOR_DONE" %}
+			<div class="running">Finishing up...</div>
+{%- elif job.status == "RUNNING" %}
+			<div class="running">Scheduled</div>
+{%- elif job.status == "WAITING" %}
+			<div class="running">Waiting for needs</div>
+{%- endif %}
+{%- if "exit_code" is in(job) %}
+			Exit code: {{ job.exit_code }}<br>
+{%- else %}
+			<em>Job never exited.<br></em>
+{%- endif %}
+{%- if "run_time" is in(job) %}
+			Ran for {{ job.run_time|humanizedelta }}.<br>
+{%- endif %}
+{%- if "log" is in(job) %}
+			<a href="{{ job.log }}">[logs]</a><br>
+{%- else %}
+			<em>No log available.<br></em>
+{%- endif %}
+		</td>
+		<td>
+			Products:<br><table>
+{%- for product in job.products %}
+			<tr>
+				<td>{{ kind_status(product) }}</td>
+				<td>{{ product.name }}</td>
+			</tr>
+{%- else %}
+			<tr><em>This job produces nothing</em></tr>
+{%- endfor %}
+			</table>
+			Dependencies:<br><table>
+{%- for product in job.deps %}
+			<tr>
+				<td>{{ kind_status(product) }}</td>
+				<td>
+					<a href="#prod-{{ product.kind }}-{{ product.name }}">
+						<code>{{ product.name }}</code>
+					</a>
+				</td>
+			</tr>
+{%- else %}
+			<tr>
+				<td class="artifact-kind"></td>
+				<td><em>This job depends on nothing</em></td>
+			</tr>
+{%- endfor %}
+			</table>
+		</td>
+	</tr>
+{%- endfor %}
+	</table>
+{%- endblock %}
+{# vim: ft=htmldjango :
+#}
