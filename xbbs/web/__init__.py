@@ -23,6 +23,9 @@ import zstandard
 
 
 app = Flask(__name__)
+app.use_x_sendfile = os.getenv("XBBS_USE_X_SENDFILE", "").lower() in [
+        "1", "t", "true", "yes",
+]
 coordinator = os.environ["XBBS_COORDINATOR_ENDPOINT"]
 projbase = os.environ["XBBS_PROJECT_BASE"]
 zctx = zmq.Context.instance()
