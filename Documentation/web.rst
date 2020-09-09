@@ -17,7 +17,6 @@ xbbs.web
 An example command line for gunicorn:
 -------------------------------------
 .. code-block:: sh
-   :linenos:
 
     XBBS_USE_X_SENDFILE=true \
     XBBS_PROJECT_BASE=/var/xbbs/projects \
