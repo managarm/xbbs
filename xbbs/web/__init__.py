@@ -2,8 +2,8 @@ import gevent.monkey
 if not gevent.monkey.is_module_patched("socket"):
     gevent.monkey.patch_all()
 from datetime import datetime
-from flask import Flask, render_template, url_for, send_file, safe_join, \
-                  make_response
+from flask import Flask, render_template, url_for, safe_join, make_response, \
+                  send_from_directory
 from functools import wraps
 from gevent.fileobject import FileObjectThread
 import json
@@ -11,11 +11,14 @@ import humanize
 import msgpack
 import os
 import os.path as path
+import plistlib
+import tarfile
 import valideer as V
 from werkzeug.exceptions import NotFound, ServiceUnavailable
 import xbbs.messages as msgs
 import xbbs.util as xutils
 import zmq.green as zmq
+import zstandard
 
 
 app = Flask(__name__)
@@ -209,13 +212,56 @@ def show_log_list(proj, ts):
 @app.route("/logs/raw/<proj>/<ts>/<job>")
 @no_cache
 def show_raw_log(proj, ts, job):
-    logfile = safe_join(projbase, proj, ts, f"{job}.log")
-    if not path.exists(logfile):
+    logdir = safe_join(projbase, proj, ts)
+    return send_from_directory(logdir, f"{job}.log")
+
+
+def _read_repodata(ridx):
+    with open(ridx, "rb") as zidx:
+        dctx = zstandard.ZstdDecompressor()
+        with dctx.stream_reader(zidx) as reader, \
+             tarfile.open(fileobj=reader, mode="r|") as t:
+            for x in t:
+                if x.name != "index.plist":
+                    continue
+                with t.extractfile(x) as idxpl:
+                    pkg_idx = plistlib.load(idxpl, fmt=plistlib.FMT_XML)
+                    return pkg_idx
+
+
+@app.route("/project/<proj>/packages")
+def show_pkg_repo(proj):
+    status = msgs.StatusMessage.unpack(send_request(b"status", b""))
+    # TODO(arsen): architecture
+    ridx = safe_join(projbase, proj, f"package_repo", "x86_64-repodata")
+    if not path.exists(ridx):
+        # TODO(arsen): tell the user there's no repo (yet)
         raise NotFound()
-    return send_file(logfile)
+    pkg_idx = gevent.get_hub().threadpool.spawn(_read_repodata, ridx).get()
+    return render_template("packages.html",
+            load=status.load,
+            host=status.hostname,
+            repodata=pkg_idx,
+            project=proj
+    )
+
+
+@app.route("/project/<proj>/repo/<filename>")
+def dl_package(proj, filename):
+    status = msgs.StatusMessage.unpack(send_request(b"status", b""))
+    # TODO(arsen): architecture
+    pkgf = safe_join(projbase, proj, f"package_repo")
+    return send_from_directory(pkgf, filename, as_attachment=True)
 
 
 app.jinja_env.filters["humanizedelta"] = humanize.precisedelta
+
+
+@app.template_filter("humanizesize")
+def humanize_size(x):
+    return humanize.naturalsize(x, binary=True, gnu=True)
+
+
 @app.template_filter("humanizeiso")
 def parse_and_humanize_iso(iso, *args, **kwargs):
     try:

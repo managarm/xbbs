@@ -6,8 +6,15 @@
 	<table id="project-list" class="color-rows">
 {%- for name, item in projects.items() %}
 		<tr class="project-item {{ item.classes|join(' ') }}">
-			<td class="project-name">{{ name }}</td>
-			<td class="project-desc">{{ item.description }}</td>
+			<td class="project-name">
+				{{ name }}<br>
+				<a href="{{ url_for("show_pkg_repo", proj=name) }}">
+					[pkgs]
+				</a>
+			</td>
+			<td class="project-desc">
+				{{ item.description }}
+			</td>
 		</tr>
 {%- endfor %}
 	</table>

@@ -21,7 +21,9 @@ setup(
         "msgpack",
         "valideer",
         "requests",
-        "humanize"
+        "humanize",
+        # required to decompress repodata into tar
+        "zstandard"
     ],
     entry_points={
         "console_scripts": [
