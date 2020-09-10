@@ -80,13 +80,20 @@ footer {
 	font-size: small;
 }
 
+footer > a,
+footer > a:visited,
+header > a,
+header > a:visited {
+	color: #6a9dff
+}
+
 a {
 	text-decoration: none;
-	color: #5080dd;
+	color: #004ad8;
 }
 
 a:visited {
-	color: #9d3692;
+	color: #962189;
 }
 
 iframe.seamless {
@@ -122,4 +129,8 @@ iframe.seamless {
 
 .project-name {
 	vertical-align: top;
+}
+
+table#project-list {
+	width: 100%;
 }
