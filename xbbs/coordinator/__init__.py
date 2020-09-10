@@ -5,7 +5,6 @@ import datetime
 import gevent
 import gevent.event
 import attr
-import attr.validators as av
 from enum import Enum
 from hashlib import blake2b
 import json
@@ -15,7 +14,6 @@ import zmq.green as zmq
 import os
 import os.path as path
 import plistlib
-import re
 import subprocess
 import shutil
 import signal
@@ -40,13 +38,13 @@ def check_output_logged(cmd, **kwargs):
 
 
 # more properties are required than not
-with V.parsing(required_properties=True, additional_properties=V.Object.REMOVE):
+with V.parsing(required_properties=True,
+               additional_properties=V.Object.REMOVE):
     @V.accepts(x=V.AnyOf("string", {"bind": "string", "connect": "string"}))
     def _receive_adaptor(x):
         if type(x) == str:
             return {"bind": x, "connect": x}
         return x
-
 
     @V.accepts(x="string")
     def _path_exists(x):
@@ -80,7 +78,7 @@ with V.parsing(required_properties=True, additional_properties=None):
     # { job_name: job }
     GRAPH_VALIDATOR = V.parse(V.Mapping("string", {
         "products": {"tools": ["string"], "pkgs": ["string"]},
-        "needed":   {"tools": ["string"], "pkgs": ["string"]}
+        "needed": {"tools": ["string"], "pkgs": ["string"]}
     }))
 
 
@@ -99,7 +97,6 @@ class Project:
     def base(self, xbbs):
         return path.join(xbbs.project_base, self.name)
 
-
     def log(self, inst, job=None):
         tsdir = path.join(self.base(inst),
                           self.last_run.strftime(xutils.TIMESTAMP_FORMAT))
@@ -108,12 +105,12 @@ class Project:
             return tsdir
         return path.join(tsdir, f"{job}.log")
 
-
     def info(self, inst, job=None):
         tsdir = path.join(self.base(inst),
                           self.last_run.strftime(xutils.TIMESTAMP_FORMAT))
         os.makedirs(tsdir, exist_ok=True)
         return path.join(tsdir, f"{job}.info")
+
 
 @attr.s
 class Xbbs:
@@ -142,6 +139,7 @@ class Xbbs:
         os.makedirs(inst.tmp_dir, exist_ok=True)
         return inst
 
+
 @attr.s
 class Artifact:
     Kind = Enum("Kind", "TOOL PACKAGE")
@@ -149,6 +147,7 @@ class Artifact:
     name = attr.ib()
     received = attr.ib(default=False, eq=False, order=False)
     failed = attr.ib(default=False, eq=False, order=False)
+
 
 @attr.s
 class Job:
@@ -176,6 +175,7 @@ class Job:
                 if prod in job.deps:
                     job.fail(graph)
 
+
 @attr.s
 class RunningProject:
     name = attr.ib()
@@ -200,20 +200,20 @@ class RunningProject:
             # TODO(arsen): circ dep detection (low prio: handled in xbstrap)
             job_val = Job()
             for x in info["needed"]["tools"]:
-                if not x in tools:
+                if x not in tools:
                     tools[x] = Artifact(Artifact.Kind.TOOL, x)
                 job_val.deps.append(tools[x])
             for x in info["needed"]["pkgs"]:
-                if not x in pkgs:
+                if x not in pkgs:
                     pkgs[x] = Artifact(Artifact.Kind.PACKAGE, x)
                 job_val.deps.append(pkgs[x])
 
             for x in info["products"]["tools"]:
-                if not x in tools:
+                if x not in tools:
                     tools[x] = Artifact(Artifact.Kind.TOOL, x)
                 job_val.products.append(tools[x])
             for x in info["products"]["pkgs"]:
-                if not x in pkgs:
+                if x not in pkgs:
                     pkgs[x] = Artifact(Artifact.Kind.PACKAGE, x)
                 job_val.products.append(pkgs[x])
 
@@ -227,6 +227,7 @@ class ArtifactEncoder(json.JSONEncoder):
         if isinstance(obj, Artifact.Kind):
             return obj.name
         return super().default(obj)
+
 
 def store_jobs(inst, projinfo, *, success=None, length=None):
     coordfile = path.join(projinfo.log(inst), "coordinator")
@@ -286,18 +287,22 @@ def solve_project(inst, projinfo):
             if not satisfied:
                 continue
 
-            needed_tools = [x.name for x in job.deps if x.kind is Artifact.Kind.TOOL]
-            needed_pkgs = [x.name for x in job.deps if x.kind is Artifact.Kind.PACKAGE]
-            prod_tools = [x.name for x in job.products if x.kind is Artifact.Kind.TOOL]
-            prod_pkgs = [x.name for x in job.products if x.kind is Artifact.Kind.PACKAGE]
+            needed_tools = [x.name for x in job.deps
+                            if x.kind is Artifact.Kind.TOOL]
+            needed_pkgs = [x.name for x in job.deps
+                           if x.kind is Artifact.Kind.PACKAGE]
+            prod_tools = [x.name for x in job.products
+                          if x.kind is Artifact.Kind.TOOL]
+            prod_pkgs = [x.name for x in job.products
+                         if x.kind is Artifact.Kind.PACKAGE]
             keys = None
             if projinfo.fingerprint:
                 pubkey = path.join(projinfo.base(inst),
                                    f"{projinfo.fingerprint}.plist")
+                # XXX: this is not cooperative, and should be okay because
+                # it's a small amount of data
                 with open(pubkey, "rb") as pkf:
-                    # XXX: this is not cooperative, and should be okay because
-                    # it's a small amount of data
-                    keys = { projinfo.fingerprint: pkf.read() }
+                    keys = {projinfo.fingerprint: pkf.read()}
 
             job.status = Job.Status.RUNNING
             jobreq = msgs.JobMessage(
@@ -327,9 +332,9 @@ def solve_project(inst, projinfo):
             assert all(x.status in [Job.Status.SUCCESS, Job.Status.FAILED]
                        for x in project.jobs.values())
             return all(not x.failed for x in project.tool_set.values()) and \
-                   all(not x.failed for x in project.pkg_set.values()) and \
-                   all(x.status == Job.Status.SUCCESS
-                       for x in project.jobs.values())
+                all(not x.failed for x in project.pkg_set.values()) and \
+                all(x.status == Job.Status.SUCCESS
+                    for x in project.jobs.values())
 
         project.artifact_received.wait()
 
@@ -339,6 +344,7 @@ def solve_project(inst, projinfo):
 # is read out and parsed in a manner similar to a terminal.
 # the ideal would be properly rendering control sequences same way
 # xterm-{256,}color does, since it is widely adopted and assumed.
+
 
 def run_project(inst, project):
     # TODO(arsen): there's a race condition here. add a lock on project
@@ -368,7 +374,7 @@ def run_project(inst, project):
         graph = json.loads(check_output_logged(["xbstrap-pipeline",
                                                 "compute-graph",
                                                 "--artifacts", "--json"],
-                                                cwd=td).decode())
+                                               cwd=td).decode())
         project.current = RunningProject.parse_graph(project, rev, graph)
         try:
             start = time.monotonic()
@@ -380,10 +386,11 @@ def run_project(inst, project):
         finally:
             project.current = None
 
+
 def cmd_build(inst, name):
     "handle starting a new build on a project by name"
     name = msgpk.loads(name)
-    if not name in inst.projects:
+    if name not in inst.projects:
         return 404, b"unknown project"
     proj = inst.projects[name]
     if proj.current:
@@ -412,7 +419,7 @@ def command_loop(inst, sock_cmd):
         try:
             [command, arg] = sock_cmd.recv_multipart()
             command = command.decode("us-ascii")
-            if not command in command_loop.cmds:
+            if command not in command_loop.cmds:
                 sock_cmd.send_multipart([b"400",
                                          msgpk.dumps("no such command")])
                 continue
@@ -429,7 +436,7 @@ def command_loop(inst, sock_cmd):
                 code = str(code)
 
             sock_cmd.send_multipart([code.encode(), value])
-        except zmq.ZMQError as e:
+        except zmq.ZMQError:
             log.exception("command loop i/o error, aborting")
             return
         except xbbs.protocol.ProtocolError as e:
@@ -458,7 +465,7 @@ def cmd_chunk(inst, value):
         # (fd, path)
         store = tempfile.mkstemp(dir=inst.collection_dir)
         os.fchmod(store[0], 0o644)
-    elif not chunk.last_hash in cmd_chunk.table:
+    elif chunk.last_hash not in cmd_chunk.table:
         return
     else:
         store = cmd_chunk.table[chunk.last_hash]
@@ -501,7 +508,7 @@ def cmd_artifact(inst, value):
     artifact = None
     target = None
     try:
-        if not message.project in inst.projects:
+        if message.project not in inst.projects:
             return
         proj = inst.projects[message.project]
         run = inst.projects[message.project].current
@@ -538,7 +545,7 @@ def cmd_artifact(inst, value):
             artifact.failed = True
 
         run.artifact_received.set()
-    except Exception as e:
+    except Exception:
         if artifact:
             artifact.failed = True
         raise
@@ -552,7 +559,7 @@ def cmd_artifact(inst, value):
 
 def cmd_log(inst, value):
     message = msgs.LogMessage.unpack(value)
-    if not message.project in inst.projects:
+    if message.project not in inst.projects:
         return
     proj = inst.projects[message.project]
     if not inst.projects[message.project].last_run:
@@ -567,7 +574,7 @@ def cmd_log(inst, value):
 def cmd_job(inst, value):
     message = msgs.JobCompletionMessage.unpack(value)
     log.debug("got job message {}", message)
-    if not message.project in inst.projects:
+    if message.project not in inst.projects:
         return
     proj = inst.projects[message.project]
     if not proj.last_run:
@@ -591,7 +598,7 @@ def intake_loop(inst):
             [cmd, value] = inst.intake.recv_multipart()
             cmd = cmd.decode("us-ascii")
             intake_loop.cmds[cmd](inst, value)
-        except zmq.ZMQError as e:
+        except zmq.ZMQError:
             log.exception("intake pipe i/o error, aborting")
             return
         except Exception as e:
@@ -614,6 +621,7 @@ def dump_projects(xbbs):
         running += 1
         log.info("project {} running: {}", name, proj.current)
     log.info("running {} project(s)", running)
+
 
 def main():
     global log

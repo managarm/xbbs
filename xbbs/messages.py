@@ -7,6 +7,7 @@ import re
 
 class BaseMessage:
     _filter = None
+
     def pack(self):
         return msgpack.dumps(attr.asdict(self, filter=self._filter))
 
@@ -22,6 +23,7 @@ class BaseMessage:
 
 _thing = V.parsing(required_properties=True, additional_properties=None)
 _thing.__enter__()
+
 
 @attr.s
 class Heartbeat(BaseMessage):
@@ -42,6 +44,7 @@ class Heartbeat(BaseMessage):
         "?job": "string"
     })
 
+
 @attr.s
 class WorkMessage(BaseMessage):
     project = attr.ib()
@@ -52,6 +55,7 @@ class WorkMessage(BaseMessage):
         "git": "string",
         "revision": "string"
     })
+
 
 @attr.s
 class JobMessage(BaseMessage):
@@ -87,9 +91,11 @@ class JobMessage(BaseMessage):
         )
     })
 
+
 def _is_blake2b_digest(x):
     # digest_size 64B for blake2b
     return isinstance(x, bytes) and len(x) == 64
+
 
 @attr.s
 class ArtifactMessage(BaseMessage):
@@ -108,6 +114,7 @@ class ArtifactMessage(BaseMessage):
         "?last_hash": V.Nullable(_is_blake2b_digest)
     })
 
+
 @attr.s
 class LogMessage(BaseMessage):
     project = attr.ib()
@@ -119,10 +126,12 @@ class LogMessage(BaseMessage):
         "line": "string"
     })
 
+
 def _last_hash_validator(x):
     if x == b"initial":
         return True
     return _is_blake2b_digest(x)
+
 
 @attr.s
 class ChunkMessage(BaseMessage):
@@ -132,6 +141,7 @@ class ChunkMessage(BaseMessage):
         "last_hash": _last_hash_validator,
         "data": bytes
     })
+
 
 @attr.s
 class JobCompletionMessage(BaseMessage):
@@ -145,6 +155,7 @@ class JobCompletionMessage(BaseMessage):
         "exit_code": "number",
         "run_time": "number"
     })
+
 
 @attr.s
 class StatusMessage(BaseMessage):
@@ -161,5 +172,6 @@ class StatusMessage(BaseMessage):
             "running": "boolean"
         })
     })
+
 
 _thing.__exit__(None, None, None)

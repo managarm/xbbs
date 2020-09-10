@@ -6,7 +6,6 @@ import gevent
 from hashlib import blake2b
 import gevent.fileobject as gfobj
 from logbook import Logger, StderrHandler, StreamHandler
-import signal
 import toml
 import valideer as V
 import os
@@ -14,10 +13,8 @@ import os.path as path
 import xbbs.util as xutils
 import xbbs.messages as msgs
 import zmq.green as zmq
-import pathlib
 import requests
 import shutil
-from socket import getfqdn
 from subprocess import check_call, Popen
 import subprocess
 import tarfile
@@ -28,7 +25,7 @@ import yaml
 with V.parsing(required_properties=True, additional_properties=None):
     CONFIG_VALIDATOR = V.parse({
         "submit_endpoint": "string"
-    });
+    })
 
 
 @attr.s
@@ -49,7 +46,10 @@ def download(url, to):
             for chunk in r.iter_content(chunk_size=CHUNK_SIZE):
                 f.write(chunk)
 
+
 CHUNK_SIZE = 32 * 1024
+
+
 def upload(inst, locked_sock, job, kind, name, fpath):
     with gfobj.FileObjectThread(fpath, "rb") as toupload:
         data = toupload.read(CHUNK_SIZE)
@@ -61,17 +61,15 @@ def upload(inst, locked_sock, job, kind, name, fpath):
                 sock.send_multipart([b"chunk", m])
             data = toupload.read(CHUNK_SIZE)
         with locked_sock as sock:
-            sock.send_multipart([b"artifact", msgs.ArtifactMessage(
-                    job.project, kind, name, True,
-                    path.basename(fpath), last_hash
-                ).pack()])
+            msg = msgs.ArtifactMessage(job.project, kind, name, True,
+                                       path.basename(fpath), last_hash)
+            sock.send_multipart([b"artifact", msg.pack()])
 
 
 def send_fail(inst, locked_sock, job, kind, name):
     with locked_sock as sock:
-        sock.send_multipart([b"artifact", msgs.ArtifactMessage(
-                job.project, kind, name, False
-            ).pack()])
+        msg = msgs.ArtifactMessage(job.project, kind, name, False)
+        sock.send_multipart([b"artifact", msg.pack()])
 
 
 def parse_yaml_stream(stream):
@@ -108,10 +106,12 @@ def run_job(inst, sock, job, logfd):
     read_end = None
     siteyaml_file = path.join(build_dir, "bootstrap-site.yml")
     uploads = []
+
     def runcmd(cmd, **kwargs):
         log.info("running command {} (params {})", cmd, kwargs)
         return check_call(cmd, **kwargs,
                           stdout=logfd, stderr=logfd, stdin=subprocess.DEVNULL)
+
     def popencmd(cmd, **kwargs):
         log.info("running command {} (params {})", cmd, kwargs)
         return Popen(cmd, **kwargs,
@@ -195,7 +195,7 @@ def run_job(inst, sock, job, logfd):
         log.info("job done. return code: {}", runner.returncode)
     except KeyboardInterrupt:
         raise
-    except Exception as e:
+    except Exception:
         log.exception("job {} failed due to an exception", job)
     finally:
         gevent.joinall(uploads)
@@ -221,17 +221,18 @@ def run_job(inst, sock, job, logfd):
         except FileNotFoundError:
             pass
 
+
 def collect_logs(job, output, fd):
     with xutils.open_coop(fd, "rt", buffering=1) as pipe:
         for line in pipe:
             with output as sock:
-                sock.send_multipart([b"log",
-                    msgs.LogMessage(
-                        project=job.project,
-                        job=job.job,
-                        line=line
-                    ).pack()
-                ])
+                msg = msgs.LogMessage(
+                    project=job.project,
+                    job=job.job,
+                    line=line
+                )
+                sock.send_multipart([b"log", msg.pack()])
+
 
 def main():
     global log
@@ -270,6 +271,7 @@ def main():
                 break
             except Exception as e:
                 log.exception("job error", e)
+
 
 if __name__ == "__main__":
     main()

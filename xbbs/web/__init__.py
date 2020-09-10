@@ -4,9 +4,8 @@ if not gevent.monkey.is_module_patched("socket"):
     gevent.monkey.patch_all()
 from datetime import datetime
 from flask import Flask, render_template, url_for, safe_join, make_response, \
-                  send_from_directory
+    send_from_directory
 from functools import wraps
-from gevent.fileobject import FileObjectThread
 import json
 import humanize
 import msgpack
@@ -14,7 +13,6 @@ import os
 import os.path as path
 import plistlib
 import tarfile
-import valideer as V
 from werkzeug.exceptions import NotFound, ServiceUnavailable
 import xbbs.messages as msgs
 import xbbs.util as xutils
@@ -24,7 +22,7 @@ import zstandard
 
 app = Flask(__name__)
 app.use_x_sendfile = os.getenv("XBBS_USE_X_SENDFILE", "").lower() in [
-        "1", "t", "true", "yes",
+    "1", "t", "true", "yes",
 ]
 coordinator = os.environ["XBBS_COORDINATOR_ENDPOINT"]
 projbase = os.environ["XBBS_PROJECT_BASE"]
@@ -49,13 +47,13 @@ class BackendError(RuntimeError):
 def load_build(proj, ts):
     base_dir = safe_join(projbase, proj, ts)
     try:
-        with open(path.join(base_dir, f"coordinator")) as f:
+        with open(path.join(base_dir, "coordinator")) as f:
             build = json.load(f)
     except FileNotFoundError:
         build = {
             "running": True,
         }
-    if not "run_time" in build:
+    if "run_time" not in build:
         build["running"] = True
     elif build["run_time"] < 1:
         build["run_time"] = "no time"
@@ -65,7 +63,6 @@ def load_build(proj, ts):
 
 def load_job(proj, ts, job):
     exists = False
-    exit_code = -1
     job_info = {
         "exit_code": -1.0
     }
@@ -76,9 +73,9 @@ def load_job(proj, ts, job):
         with open(path.join(projdir, f"{job}.info")) as info:
             job_info = json.load(info)
         exists = True
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         pass
-    if not "run_time" in job_info:
+    if "run_time" not in job_info:
         job_info["run_time"] = "unknown time"
     elif job_info["run_time"] < 1:
         job_info["run_time"] = "no time"
@@ -150,7 +147,7 @@ def overview():
                            load=status.load,
                            host=status.hostname,
                            history=build_history
-                          )
+                           )
 
 
 @app.route("/jobs/<proj>/<ts>")
@@ -166,13 +163,12 @@ def job_view(proj, ts):
                            build=build_info,
                            ts=ts,
                            project=proj
-                          )
+                           )
 
 
 @app.route("/logs/<proj>/<ts>/<job>")
 def show_log(proj, ts, job):
     status = msgs.StatusMessage.unpack(send_request(b"status", b""))
-    logfile = safe_join(projbase, proj, ts, f"{job}.log")
     build = load_job(proj, ts, job)
     return render_template("log.html",
                            project=proj,
@@ -184,7 +180,8 @@ def show_log(proj, ts, job):
                            raw=url_for("show_raw_log",
                                        proj=proj, ts=ts,
                                        job=job)
-                          )
+                           )
+
 
 @app.route("/logs/<proj>/<ts>/")
 def show_log_list(proj, ts):
@@ -210,12 +207,13 @@ def show_log_list(proj, ts):
                            host=status.hostname,
                            jobs=jobs,
                            build=build
-                          )
+                           )
 
 
 @app.route("/logs/raw/<proj>/<ts>/<job>")
 @no_cache
 def show_raw_log(proj, ts, job):
+    # XXX: check if coordinator is online?
     logdir = safe_join(projbase, proj, ts)
     return send_from_directory(logdir, f"{job}.log")
 
@@ -237,24 +235,25 @@ def _read_repodata(ridx):
 def show_pkg_repo(proj):
     status = msgs.StatusMessage.unpack(send_request(b"status", b""))
     # TODO(arsen): architecture
-    ridx = safe_join(projbase, proj, f"package_repo", "x86_64-repodata")
+    ridx = safe_join(projbase, proj, "package_repo", "x86_64-repodata")
+    # TODO(arsen): saved repos
     if not path.exists(ridx):
         # TODO(arsen): tell the user there's no repo (yet)
         raise NotFound()
     pkg_idx = gevent.get_hub().threadpool.spawn(_read_repodata, ridx).get()
     return render_template("packages.html",
-            load=status.load,
-            host=status.hostname,
-            repodata=pkg_idx,
-            project=proj
-    )
+                           load=status.load,
+                           host=status.hostname,
+                           repodata=pkg_idx,
+                           project=proj
+                           )
 
 
 @app.route("/project/<proj>/repo/<filename>")
 def dl_package(proj, filename):
-    status = msgs.StatusMessage.unpack(send_request(b"status", b""))
+    # XXX: check if coordinator is online?
     # TODO(arsen): architecture
-    pkgf = safe_join(projbase, proj, f"package_repo")
+    pkgf = safe_join(projbase, proj, "package_repo")
     return send_from_directory(pkgf, filename, as_attachment=True)
 
 
