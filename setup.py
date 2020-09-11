@@ -28,6 +28,7 @@ setup(
     entry_points={
         "console_scripts": [
             "xbbs-coordinator = xbbs.coordinator:main",
+            "xbbs-cli = xbbs.cli:main",
             "xbbs-worker = xbbs.worker:main"
         ]
     }

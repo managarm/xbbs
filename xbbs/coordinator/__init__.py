@@ -52,7 +52,7 @@ with V.parsing(required_properties=True,
 
     # TODO(arsen): write an endpoint validator for workers
     CONFIG_VALIDATOR = V.parse({
-        "command_endpoint": "string",
+        "command_endpoint": V.AdaptBy(_receive_adaptor),
         "project_base": "string",
         "build_root": V.AllOf("string", path.isabs),
         "intake": V.AdaptBy(_receive_adaptor),
@@ -645,7 +645,7 @@ def main():
         for x in cfg["workers"]:
             inst.pipeline.connect(x)
 
-        sock_cmd.bind(cfg.get("command_endpoint"))
+        sock_cmd.bind(cfg["command_endpoint"]["bind"])
         dumper = gevent.signal_handler(signal.SIGUSR1, dump_projects, inst)
         log.info("startup")
         intake = gevent.spawn(intake_loop, inst)
