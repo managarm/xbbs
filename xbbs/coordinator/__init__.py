@@ -391,10 +391,10 @@ def cmd_build(inst, name):
     "handle starting a new build on a project by name"
     name = msgpk.loads(name)
     if name not in inst.projects:
-        return 404, b"unknown project"
+        return 404, msgpk.dumps("unknown project")
     proj = inst.projects[name]
     if proj.current:
-        return 409, b"project already running"
+        return 409, msgpk.dumps("project already running")
     gevent.spawn(run_project, inst, proj)
 
 
@@ -427,7 +427,7 @@ def command_loop(inst, sock_cmd):
             code = "200"
             value = command_loop.cmds[command](inst, arg)
             if value is None:
-                sock_cmd.send_multipart([b"204", b""])
+                sock_cmd.send_multipart([b"204", msgpk.dumps("")])
                 continue
 
             if type(value) == tuple:
