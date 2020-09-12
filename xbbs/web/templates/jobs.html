@@ -61,7 +61,12 @@
 {%- for product in job.products %}
 			<tr>
 				<td>{{ kind_status(product) }}</td>
-				<td>{{ product.name }}</td>
+				<td>
+					{{ product.name }}
+{%- if product.version is defined %}
+					{{ product.version }}
+{%- endif %}
+				</td>
 			</tr>
 {%- else %}
 			<tr><em>This job produces nothing</em></tr>
