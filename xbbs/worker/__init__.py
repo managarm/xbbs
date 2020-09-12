@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-import attr
 import gevent.monkey
 gevent.monkey.patch_all()
+import attr
+from functools import partial
 import gevent
 from hashlib import blake2b
 import gevent.fileobject as gfobj
@@ -184,14 +185,18 @@ def run_job(inst, sock, job, logfd):
                 else:
                     continue
                 if status == "success":
-                    repglet = gevent.spawn(upload,
-                                           inst, sock, job, kind, subject,
-                                           filename)
+                    repglet = partial(upload,
+                                      inst, sock, job, kind, subject, filename)
                 else:
-                    repglet = gevent.spawn(send_fail,
-                                           inst, sock, job, kind, subject)
-                uploads.append(repglet)
-                repglet.link(lambda g, p=prod_set, s=subject: p.pop(s))
+                    repglet = partial(send_fail,
+                                      inst, sock, job, kind, subject)
+
+                def _run_and_pop(f, p, s):
+                    f()
+                    p.pop(s)
+
+                task = gevent.spawn(_run_and_pop, repglet, prod_set, subject)
+                uploads.append(task)
         code = runner.returncode
         log.info("job done. return code: {}", runner.returncode)
     except KeyboardInterrupt:
