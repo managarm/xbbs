@@ -1,2 +1,2 @@
-include xbbs/web/template/*
+include xbbs/web/templates/*
 include xbbs/web/static/*
