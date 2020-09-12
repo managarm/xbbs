@@ -395,6 +395,8 @@ def cmd_build(inst, name):
     proj = inst.projects[name]
     if proj.current:
         return 409, msgpk.dumps("project already running")
+    # XXX: is this a horrible hack? naaaaa
+    proj.current = True
     gevent.spawn(run_project, inst, proj)
 
 
@@ -616,7 +618,7 @@ intake_loop.cmds = {
 def dump_projects(xbbs):
     running = 0
     for name, proj in xbbs.projects.items():
-        if not proj.current:
+        if not isinstance(proj.current, RunningProject):
             continue
         running += 1
         log.info("project {} running: {}", name, proj.current)
