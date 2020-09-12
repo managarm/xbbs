@@ -126,10 +126,10 @@ class Xbbs:
     tmp_dir = attr.ib()
     build_root = attr.ib()
     intake_address = attr.ib()
-    running = attr.ib(default=False)
     pipeline = attr.ib(default=None)
     intake = attr.ib(default=None)
     projects = attr.ib(factory=dict)
+    project_greenlets = attr.ib(factory=list)
     zmq = attr.ib(default=zmq.Context.instance())
 
     @classmethod
@@ -408,7 +408,9 @@ def cmd_build(inst, name):
         return 409, msgpk.dumps("project already running")
     # XXX: is this a horrible hack? naaaaa
     proj.current = True
-    gevent.spawn(run_project, inst, proj)
+    pg = gevent.spawn(run_project, inst, proj)
+    pg.link(lambda g, i=inst: inst.project_greenlets.remove(g))
+    inst.project_greenlets.append(pg)
 
 
 def cmd_status(inst, _):
@@ -428,7 +430,7 @@ def cmd_status(inst, _):
 
 
 def command_loop(inst, sock_cmd):
-    while inst.running:
+    while True:
         try:
             [command, arg] = sock_cmd.recv_multipart()
             command = command.decode("us-ascii")
@@ -606,7 +608,7 @@ def cmd_job(inst, value):
 
 
 def intake_loop(inst):
-    while inst.running:
+    while True:
         try:
             [cmd, value] = inst.intake.recv_multipart()
             cmd = cmd.decode("us-ascii")
@@ -662,12 +664,12 @@ def main():
         dumper = gevent.signal_handler(signal.SIGUSR1, dump_projects, inst)
         log.info("startup")
         intake = gevent.spawn(intake_loop, inst)
-        inst.running = True
         try:
             command_loop(inst, sock_cmd)
         finally:
-            inst.running = False
-            intake.join()
+            # XXX: This may not be the greatest way to handle this
+            gevent.killall(inst.project_greenlets[:], KeyboardInterrupt)
+            gevent.kill(intake, KeyboardInterrupt)
             dumper.cancel()
 
 # TODO(arsen): make a clean exit
