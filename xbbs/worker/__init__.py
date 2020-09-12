@@ -200,12 +200,11 @@ def run_job(inst, sock, job, logfd):
         log.exception("job {} failed due to an exception", job)
     finally:
         gevent.joinall(uploads)
-        # these do not need to be async since there's no pipe waiting
-        # if some artifact wasn't done, that's an error
-        for x in job.prod_pkgs:
-            send_fail(inst, sock, job, "package", x)
-        for x in job.prod_tools:
-            send_fail(inst, sock, job, "tool", x)
+        for x in (build_dir, source_dir):
+            try:
+                shutil.rmtree(x)
+            except FileNotFoundError:
+                pass
         with sock as us:
             us.send_multipart([b"job", msgs.JobCompletionMessage(
                 project=job.project,
@@ -213,14 +212,12 @@ def run_job(inst, sock, job, logfd):
                 exit_code=code,
                 run_time=time.monotonic() - start
             ).pack()])
-        try:
-            shutil.rmtree(build_dir)
-        except FileNotFoundError:
-            pass
-        try:
-            shutil.rmtree(source_dir)
-        except FileNotFoundError:
-            pass
+        # these do not need to be async since there's no pipe waiting
+        # if some artifact wasn't done, that's an error
+        for x in job.prod_pkgs:
+            send_fail(inst, sock, job, "package", x)
+        for x in job.prod_tools:
+            send_fail(inst, sock, job, "tool", x)
 
 
 def collect_logs(job, output, fd):
