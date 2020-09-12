@@ -1,2 +1,3 @@
-include xbbs/web/templates/*
-include xbbs/web/static/*
+recursive-include xbbs/web/templates *
+recursive-include xbbs/web/static *
+include COPYING README.rst
