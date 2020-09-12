@@ -215,7 +215,8 @@ def show_log_list(proj, ts):
 def show_raw_log(proj, ts, job):
     # XXX: check if coordinator is online?
     logdir = safe_join(projbase, proj, ts)
-    return send_from_directory(logdir, f"{job}.log")
+    return send_from_directory(logdir, f"{job}.log",
+                               mimetype="text/plain")
 
 
 def _read_repodata(ridx):
