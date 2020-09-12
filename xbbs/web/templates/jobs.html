@@ -18,6 +18,9 @@
 	<strong>for {{ project }}</strong>
 	<br>{{ ts|humanizeiso }}<br>
 	{{ macros.build_status(build) }}
+	<a href="{{ url_for("show_log_list", proj=project, ts=ts) }}">
+		[all logs]
+	</a>
 {%- endblock %}
 {%- block col2 %}
 	<table class="color-rows fullwidth onethree-cols">
