@@ -307,7 +307,7 @@ def solve_project(inst, projinfo):
                           if x.kind is Artifact.Kind.TOOL}
             prod_pkgs = {x.name: x.version for x in job.products
                          if x.kind is Artifact.Kind.PACKAGE}
-            keys = None
+            keys = {}
             if projinfo.fingerprint:
                 pubkey = path.join(projinfo.base(inst),
                                    f"{projinfo.fingerprint}.plist")
