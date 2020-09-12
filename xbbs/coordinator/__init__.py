@@ -76,9 +76,16 @@ with V.parsing(required_properties=True,
 
 with V.parsing(required_properties=True, additional_properties=None):
     # { job_name: job }
+    ARTIFACT_VALIDATOR = V.parse({"name": "string", "version": "string"})
     GRAPH_VALIDATOR = V.parse(V.Mapping("string", {
-        "products": {"tools": ["string"], "pkgs": ["string"]},
-        "needed": {"tools": ["string"], "pkgs": ["string"]}
+        "products": {
+            "tools": [ARTIFACT_VALIDATOR],
+            "pkgs": [ARTIFACT_VALIDATOR]
+        },
+        "needed": {
+            "tools": [ARTIFACT_VALIDATOR],
+            "pkgs": [ARTIFACT_VALIDATOR]
+        }
     }))
 
 
@@ -145,6 +152,7 @@ class Artifact:
     Kind = Enum("Kind", "TOOL PACKAGE")
     kind = attr.ib()
     name = attr.ib()
+    version = attr.ib()
     received = attr.ib(default=False, eq=False, order=False)
     failed = attr.ib(default=False, eq=False, order=False)
 
@@ -200,22 +208,26 @@ class RunningProject:
             # TODO(arsen): circ dep detection (low prio: handled in xbstrap)
             job_val = Job()
             for x in info["needed"]["tools"]:
-                if x not in tools:
-                    tools[x] = Artifact(Artifact.Kind.TOOL, x)
-                job_val.deps.append(tools[x])
+                name = x["name"]
+                if name not in tools:
+                    tools[name] = Artifact(Artifact.Kind.TOOL, **x)
+                job_val.deps.append(tools[name])
             for x in info["needed"]["pkgs"]:
-                if x not in pkgs:
-                    pkgs[x] = Artifact(Artifact.Kind.PACKAGE, x)
-                job_val.deps.append(pkgs[x])
+                name = x["name"]
+                if name not in pkgs:
+                    pkgs[name] = Artifact(Artifact.Kind.PACKAGE, **x)
+                job_val.deps.append(pkgs[name])
 
             for x in info["products"]["tools"]:
-                if x not in tools:
-                    tools[x] = Artifact(Artifact.Kind.TOOL, x)
-                job_val.products.append(tools[x])
+                name = x["name"]
+                if name not in tools:
+                    tools[name] = Artifact(Artifact.Kind.TOOL, **x)
+                job_val.products.append(tools[name])
             for x in info["products"]["pkgs"]:
-                if x not in pkgs:
-                    pkgs[x] = Artifact(Artifact.Kind.PACKAGE, x)
-                job_val.products.append(pkgs[x])
+                name = x["name"]
+                if name not in pkgs:
+                    pkgs[name] = Artifact(Artifact.Kind.PACKAGE, **x)
+                job_val.products.append(pkgs[name])
 
             proj.jobs[job] = job_val
 
@@ -287,14 +299,14 @@ def solve_project(inst, projinfo):
             if not satisfied:
                 continue
 
-            needed_tools = [x.name for x in job.deps
-                            if x.kind is Artifact.Kind.TOOL]
-            needed_pkgs = [x.name for x in job.deps
-                           if x.kind is Artifact.Kind.PACKAGE]
-            prod_tools = [x.name for x in job.products
-                          if x.kind is Artifact.Kind.TOOL]
-            prod_pkgs = [x.name for x in job.products
-                         if x.kind is Artifact.Kind.PACKAGE]
+            needed_tools = {x.name: x.version for x in job.deps
+                            if x.kind is Artifact.Kind.TOOL}
+            needed_pkgs = {x.name: x.version for x in job.deps
+                           if x.kind is Artifact.Kind.PACKAGE}
+            prod_tools = {x.name: x.version for x in job.products
+                          if x.kind is Artifact.Kind.TOOL}
+            prod_pkgs = {x.name: x.version for x in job.products
+                         if x.kind is Artifact.Kind.PACKAGE}
             keys = None
             if projinfo.fingerprint:
                 pubkey = path.join(projinfo.base(inst),
@@ -347,44 +359,43 @@ def solve_project(inst, projinfo):
 
 
 def run_project(inst, project):
-    # TODO(arsen): there's a race condition here. add a lock on project
-    project.last_run = datetime.datetime.now()
-    projdir = path.join(project.base(inst), 'repo')
-    os.makedirs(projdir, exist_ok=True)
-    if not path.isdir(path.join(projdir, ".git")):
-        check_call_logged(["git", "init"], cwd=projdir)
-        check_call_logged(["git", "remote", "add", "origin", project.git],
+    try:
+        project.last_run = datetime.datetime.now()
+        projdir = path.join(project.base(inst), 'repo')
+        os.makedirs(projdir, exist_ok=True)
+        if not path.isdir(path.join(projdir, ".git")):
+            check_call_logged(["git", "init"], cwd=projdir)
+            check_call_logged(["git", "remote", "add", "origin", project.git],
+                              cwd=projdir)
+        check_call_logged(["git", "fetch", "origin"], cwd=projdir)
+        # TODO(arsen): support non-master builds
+        check_call_logged(["git", "checkout", "--detach", "origin/master"],
                           cwd=projdir)
-    check_call_logged(["git", "fetch", "origin"], cwd=projdir)
-    # TODO(arsen): support non-master builds
-    check_call_logged(["git", "checkout", "--detach", "origin/master"],
-                      cwd=projdir)
-    rev = check_output_logged(["git", "rev-parse", "HEAD"],
-                              cwd=projdir).decode().strip()
-    tool_repo = path.join(project.base(inst), 'tool_repo')
-    package_repo = path.join(project.base(inst), 'package_repo')
-    # TODO(arsen): remove to support incremental compilation
-    if path.isdir(tool_repo):
-        shutil.rmtree(tool_repo)
-    if path.isdir(package_repo):
-        shutil.rmtree(package_repo)
-    with tempfile.TemporaryDirectory(dir=inst.tmp_dir) as td:
-        xutils.run_hook(log, projdir, td, "pregraph")
-        check_call_logged(["xbstrap", "init", projdir], cwd=td)
-        graph = json.loads(check_output_logged(["xbstrap-pipeline",
-                                                "compute-graph",
-                                                "--artifacts", "--json"],
-                                               cwd=td).decode())
+        rev = check_output_logged(["git", "rev-parse", "HEAD"],
+                                  cwd=projdir).decode().strip()
+        tool_repo = path.join(project.base(inst), 'tool_repo')
+        package_repo = path.join(project.base(inst), 'package_repo')
+        # TODO(arsen): remove to support incremental compilation
+        if path.isdir(tool_repo):
+            shutil.rmtree(tool_repo)
+        if path.isdir(package_repo):
+            shutil.rmtree(package_repo)
+        with tempfile.TemporaryDirectory(dir=inst.tmp_dir) as td:
+            xutils.run_hook(log, projdir, td, "pregraph")
+            check_call_logged(["xbstrap", "init", projdir], cwd=td)
+            graph = json.loads(check_output_logged(["xbstrap-pipeline",
+                                                    "compute-graph",
+                                                    "--artifacts", "--json"],
+                                                   cwd=td).decode())
         project.current = RunningProject.parse_graph(project, rev, graph)
-        try:
-            start = time.monotonic()
-            success = solve_project(inst, project)
-            length = time.monotonic() - start
-            log.info("job {} done; success? {} in {}s",
-                     project.name, success, length)
-            store_jobs(inst, project, success=success, length=length)
-        finally:
-            project.current = None
+        start = time.monotonic()
+        success = solve_project(inst, project)
+        length = time.monotonic() - start
+        log.info("job {} done; success? {} in {}s",
+                 project.name, success, length)
+        store_jobs(inst, project, success=success, length=length)
+    finally:
+        project.current = None
 
 
 def cmd_build(inst, name):

@@ -57,6 +57,9 @@ class WorkMessage(BaseMessage):
     })
 
 
+PKG_TOOL_VALIDATOR = V.parse(V.Mapping("string", "string"))
+
+
 @attr.s
 class JobMessage(BaseMessage):
     project = attr.ib()
@@ -80,10 +83,10 @@ class JobMessage(BaseMessage):
         "revision": "string",
         "output": "string",
         "build_root": "string",
-        "needed_pkgs": ["string"],
-        "needed_tools": ["string"],
-        "prod_pkgs": ["string"],
-        "prod_tools": ["string"],
+        "needed_pkgs": PKG_TOOL_VALIDATOR,
+        "needed_tools": PKG_TOOL_VALIDATOR,
+        "prod_pkgs": PKG_TOOL_VALIDATOR,
+        "prod_tools": PKG_TOOL_VALIDATOR,
         "tool_repo": "string",
         "pkg_repo": "string",
         "?xbps_keys": V.Mapping(

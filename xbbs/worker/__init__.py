@@ -178,8 +178,9 @@ def run_job(inst, sock, job, logfd):
                 elif action == "pack":
                     prod_set = job.prod_pkgs
                     kind = "package"
+                    ver = job.prod_pkgs[subject]
                     filename = path.join(repo_dir,
-                                         f"{subject}-0.0_0.x86_64.xbps")
+                                         f"{subject}-{ver}.x86_64.xbps")
                 else:
                     continue
                 if status == "success":
@@ -190,7 +191,7 @@ def run_job(inst, sock, job, logfd):
                     repglet = gevent.spawn(send_fail,
                                            inst, sock, job, kind, subject)
                 uploads.append(repglet)
-                repglet.link(lambda g, p=prod_set, s=subject: p.remove(s))
+                repglet.link(lambda g, p=prod_set, s=subject: p.pop(s))
         code = runner.returncode
         log.info("job done. return code: {}", runner.returncode)
     except KeyboardInterrupt:
