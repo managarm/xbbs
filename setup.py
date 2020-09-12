@@ -25,6 +25,7 @@ setup(
         # required to decompress repodata into tar
         "zstandard"
     ],
+    include_package_data=True,
     entry_points={
         "console_scripts": [
             "xbbs-coordinator = xbbs.coordinator:main",

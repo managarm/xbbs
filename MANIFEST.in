@@ -1,0 +1,2 @@
+include xbbs/web/template/*
+include xbbs/web/static/*
