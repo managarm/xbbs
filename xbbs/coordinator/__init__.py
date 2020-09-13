@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-import gevent.monkey
-gevent.monkey.patch_all()
+import gevent.monkey; gevent.monkey.patch_all()  # noqa isort:skip
 import datetime
 import gevent
 import gevent.event

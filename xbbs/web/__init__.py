@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-import gevent.monkey
-if not gevent.monkey.is_module_patched("socket"):
-    gevent.monkey.patch_all()
+import gevent.monkey # noqa isort:skip
+if not gevent.monkey.is_module_patched("socket"): # noqa isort:skip
+    gevent.monkey.patch_all() # noqa isort:skip
 from datetime import datetime
 from flask import Flask, render_template, url_for, safe_join, make_response, \
     send_from_directory

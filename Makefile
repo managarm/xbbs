@@ -6,6 +6,6 @@ help:
 	@echo "    flake - runs the flake8 linter"
 
 flake:
-	flake8 --ignore=E402 xbbs
+	flake8 xbbs
 
 .PHONY: flake help
