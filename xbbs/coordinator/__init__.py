@@ -13,6 +13,7 @@ import zmq.green as zmq
 import os
 import os.path as path
 import plistlib
+import re
 import subprocess
 import shutil
 import signal
@@ -76,7 +77,8 @@ with V.parsing(required_properties=True,
 with V.parsing(required_properties=True, additional_properties=None):
     # { job_name: job }
     ARTIFACT_VALIDATOR = V.parse({"name": "string", "version": "string"})
-    GRAPH_VALIDATOR = V.parse(V.Mapping("string", {
+    JOB_REGEX = re.compile("^((package|tool):)?[a-zA-Z][a-zA-Z-_0-9.]*$")
+    GRAPH_VALIDATOR = V.parse(V.Mapping(JOB_REGEX, {
         "products": {
             "tools": [ARTIFACT_VALIDATOR],
             "pkgs": [ARTIFACT_VALIDATOR]
@@ -98,22 +100,22 @@ class Project:
     tools = attr.ib()
     fingerprint = attr.ib(default=None)
     current = attr.ib(default=None)
-    last_run = attr.ib(default=None)
 
+    # TODO(arsen): these should probably be moved to RunningProject
     def base(self, xbbs):
         return path.join(xbbs.project_base, self.name)
 
     def log(self, inst, job=None):
         tsdir = path.join(self.base(inst),
-                          self.last_run.strftime(xutils.TIMESTAMP_FORMAT))
+                          self.current.ts.strftime(xutils.TIMESTAMP_FORMAT))
         os.makedirs(tsdir, exist_ok=True)
         if not job:
             return tsdir
         return path.join(tsdir, f"{job}.log")
 
-    def info(self, inst, job=None):
+    def info(self, inst, job):
         tsdir = path.join(self.base(inst),
-                          self.last_run.strftime(xutils.TIMESTAMP_FORMAT))
+                          self.current.ts.strftime(xutils.TIMESTAMP_FORMAT))
         os.makedirs(tsdir, exist_ok=True)
         return path.join(tsdir, f"{job}.info")
 
@@ -190,6 +192,7 @@ class RunningProject:
     revision = attr.ib()
     jobs = attr.ib(factory=dict)
     success = attr.ib(default=True)
+    ts = attr.ib(factory=datetime.datetime.now)
 
     tool_set = attr.ib(factory=dict)
     pkg_set = attr.ib(factory=dict)
@@ -358,8 +361,8 @@ def solve_project(inst, projinfo):
 
 
 def run_project(inst, project):
+    start = None
     try:
-        project.last_run = datetime.datetime.now()
         projdir = path.join(project.base(inst), 'repo')
         os.makedirs(projdir, exist_ok=True)
         if not path.isdir(path.join(projdir, ".git")):
@@ -387,12 +390,19 @@ def run_project(inst, project):
                                                     "--artifacts", "--json"],
                                                    cwd=td).decode())
         project.current = RunningProject.parse_graph(project, rev, graph)
-        start = time.monotonic()
-        success = solve_project(inst, project)
-        length = time.monotonic() - start
-        log.info("job {} done; success? {} in {}s",
-                 project.name, success, length)
-        store_jobs(inst, project, success=success, length=length)
+        with xutils.lock_file(project.log(inst), "coordinator"):
+            start = time.monotonic()
+            success = solve_project(inst, project)
+            length = time.monotonic() - start
+            log.info("job {} done; success? {} in {}s",
+                     project.name, success, length)
+            store_jobs(inst, project, success=success, length=length)
+    except Exception:
+        log.exception("build failed due to an exception")
+        length = 0
+        if start:
+            length = time.monotonic() - start
+        store_jobs(inst, project, success=False, length=length)
     finally:
         project.current = None
 
@@ -424,7 +434,8 @@ def cmd_status(inst, _):
     return msgs.StatusMessage(
         projects=projmap,
         hostname=socket.gethostname(),
-        load=os.getloadavg()
+        load=os.getloadavg(),
+        pid=os.getpid()
     ).pack()
 
 
@@ -576,7 +587,9 @@ def cmd_log(inst, value):
     if message.project not in inst.projects:
         return
     proj = inst.projects[message.project]
-    if not inst.projects[message.project].last_run:
+    if not proj.current:
+        log.info("dropped log because project {} was not running",
+                 message.project)
         return
 
     # XXX: this is not cooperative, and should be okay because
@@ -591,7 +604,7 @@ def cmd_job(inst, value):
     if message.project not in inst.projects:
         return
     proj = inst.projects[message.project]
-    if not proj.last_run:
+    if not proj.current:
         return
 
     job = proj.current.jobs[message.job]
@@ -602,7 +615,7 @@ def cmd_job(inst, value):
     job.exit_code = message.exit_code
     job.run_time = message.run_time
     proj.current.artifact_received.set()
-    with open(proj.info(inst, message.job), mode="a") as infofile:
+    with open(proj.info(inst, message.job), "w") as infofile:
         json.dump(message._dictvalue, infofile, indent=4)
 
 

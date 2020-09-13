@@ -1,20 +1,24 @@
 {# SPDX-License-Identifier: AGPL-3.0-only #}
 {%- macro build_status_short(build) %}
-{%- if build.running %}
-	<code class="running status-short">INCOMPLETE</code>
-{%- elif build.success %}
+{%- if build.success %}
 	<code class="success status-short">SUCCESS</code>
+{%- elif build.running %}
+	<code class="running status-short">RUNNING</code>
+{%- elif not build.finished %}
+	<code class="running status-short">INCOMPLETE</code>
 {%- else %}
 	<code class="failed status-short">FAILED</code>
 {%- endif %}
 {%- endmacro %}
 
 {%- macro build_status(build) %}
-{%- if build.running %}
-	<div class="running">Build never finished...</div>
-{%- elif build.success %}
+{%- if build.success %}
 	<div class="success">Build successful
 	in {{ build.run_time|humanizedelta }}</div>
+{%- elif build.running %}
+	<div class="running">Build running...</div>
+{%- elif not build.finished %}
+	<div class="running">Build never finished... (crash?)</div>
 {%- else %}
 	<div class="failed">Build failed
 	in {{ build.run_time|humanizedelta }}</div>

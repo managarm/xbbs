@@ -44,7 +44,7 @@ class BackendError(RuntimeError):
         super().__init__(f"Coordinator sent back code {self.status_code}, {r}")
 
 
-def load_build(proj, ts):
+def load_build(status, proj, ts):
     base_dir = safe_join(projbase, proj, ts)
     try:
         with open(path.join(base_dir, "coordinator")) as f:
@@ -53,20 +53,23 @@ def load_build(proj, ts):
         build = {
             "running": True,
         }
+    build["finished"] = True
+    build["running"] = xutils.is_locked(base_dir, "coordinator", status.pid)
     if "run_time" not in build:
-        build["running"] = True
+        build["finished"] = False
     elif build["run_time"] < 1:
         build["run_time"] = "no time"
     build["base_dir"] = base_dir
     return build
 
 
-def load_job(proj, ts, job):
+def load_job(status, proj, ts, job):
+    # XXX: the names here are a mess
     exists = False
     job_info = {
         "exit_code": -1.0
     }
-    projdir = path.join(projbase, proj, ts)
+    projdir = safe_join(projbase, proj, ts)
     if not path.isdir(projdir):
         raise NotFound()
     try:
@@ -81,8 +84,12 @@ def load_job(proj, ts, job):
         job_info["run_time"] = "no time"
     job_info.update(
         running=not exists,
+        finished=exists,
         success=job_info["exit_code"] == 0
     )
+    coord_is_running = xutils.is_locked(projdir, "coordinator", status.pid)
+    if not coord_is_running:
+        job_info["running"] = False
     return job_info
 
 
@@ -130,7 +137,7 @@ def overview():
                 build_ts = datetime.strptime(build, xutils.TIMESTAMP_FORMAT)
             except ValueError:
                 continue
-            build_info = load_build(project_name, build)
+            build_info = load_build(status, project_name, build)
             build_info.update(
                 timestamp=build_ts,
                 project=project_name,
@@ -153,7 +160,7 @@ def overview():
 @app.route("/jobs/<proj>/<ts>")
 def job_view(proj, ts):
     status = msgs.StatusMessage.unpack(send_request(b"status", b""))
-    build_info = load_build(proj, ts)
+    build_info = load_build(status, proj, ts)
     for k, v in build_info["jobs"].items():
         if os.access(path.join(build_info["base_dir"], f"{k}.log"), os.R_OK):
             v.update(log=url_for("show_log", proj=proj, ts=ts, job=k))
@@ -169,7 +176,7 @@ def job_view(proj, ts):
 @app.route("/logs/<proj>/<ts>/<job>")
 def show_log(proj, ts, job):
     status = msgs.StatusMessage.unpack(send_request(b"status", b""))
-    build = load_job(proj, ts, job)
+    build = load_job(status, proj, ts, job)
     return render_template("log.html",
                            project=proj,
                            ts=ts,
@@ -187,13 +194,13 @@ def show_log(proj, ts, job):
 def show_log_list(proj, ts):
     status = msgs.StatusMessage.unpack(send_request(b"status", b""))
     jobs = []
-    build = load_build(proj, ts)
+    build = load_build(status, proj, ts)
     builddir = safe_join(projbase, proj, ts)
     for x in os.listdir(builddir):
         if not x.endswith(".log"):
             continue
         x = x[:-4]
-        obj = load_job(proj, ts, x)
+        obj = load_job(status, proj, ts, x)
         obj.update(
             job=x,
             link=url_for("show_log", proj=proj, ts=ts, job=x)

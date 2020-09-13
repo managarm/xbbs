@@ -165,14 +165,16 @@ class StatusMessage(BaseMessage):
     hostname = attr.ib()
     load = attr.ib()
     projects = attr.ib()
+    pid = attr.ib()
     _validator = V.parse({
         "hostname": "string",
         "load": V.AdaptTo(tuple, ("number", "number", "number")),
+        "pid": "integer",
         "projects": V.Mapping("string", {
             "git": "string",
             "description": "string",
             "classes": ["string"],
-            "running": "boolean"
+            "running": "boolean",
         })
     })
 
