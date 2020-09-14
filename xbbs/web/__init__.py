@@ -196,16 +196,19 @@ def show_log_list(proj, ts):
     jobs = []
     build = load_build(status, proj, ts)
     builddir = safe_join(projbase, proj, ts)
-    for x in os.listdir(builddir):
-        if not x.endswith(".log"):
-            continue
-        x = x[:-4]
-        obj = load_job(status, proj, ts, x)
-        obj.update(
-            job=x,
-            link=url_for("show_log", proj=proj, ts=ts, job=x)
-        )
-        jobs.append(obj)
+    try:
+        for x in os.listdir(builddir):
+            if not x.endswith(".log"):
+                continue
+            x = x[:-4]
+            obj = load_job(status, proj, ts, x)
+            obj.update(
+                job=x,
+                link=url_for("show_log", proj=proj, ts=ts, job=x)
+            )
+            jobs.append(obj)
+    except FileNotFoundError as e:
+        raise NotFound() from e
     jobs.sort(key=lambda x: x["running"], reverse=True)
     return render_template("loglist.html",
                            project=proj,

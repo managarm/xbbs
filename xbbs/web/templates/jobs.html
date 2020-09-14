@@ -3,14 +3,14 @@
 {%- import "macros.html" as macros %}
 {%- macro kind_status(product) %}
 {%- if not product.received %}
-<div class="running artifact-kind">
+<code class="running artifact-kind">
 {%- elif product.failed %}
-<div class="failed artifact-kind">
+<code class="failed artifact-kind">
 {%- else %}
-<div class="success artifact-kind">
+<code class="success artifact-kind">
 {%- endif %}
-	<code>{{ product.kind|capitalize }}</code>
-</div>
+	{{ product.kind|capitalize }}
+</code>
 {%- endmacro %}
 {%- block title %}Job view for {{ project }}{%- endblock %}
 {%- block col1 %}

@@ -112,7 +112,9 @@ iframe.seamless {
 }
 
 .artifact-kind {
-	width: 4em;
+	display: block;
+	width: 7ch;
+	margin-right: 0.5em;
 }
 
 .fullwidth {
