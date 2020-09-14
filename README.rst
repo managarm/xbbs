@@ -15,4 +15,4 @@ xbbs consists of three modules:
 - ``xbbs.web``: read only web frontend to the coordinator providing access to
   logs, repositories, and build history
 
-Additional documentation will be in ``Documentation/``.
+Additional documentation will be in ``docs/``.
