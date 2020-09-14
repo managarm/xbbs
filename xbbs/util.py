@@ -11,7 +11,7 @@ import os.path as path
 import re
 
 
-PROJECT_REGEX = re.compile("^[a-zA-Z][_a-zA-Z0-9]{0,30}$")
+PROJECT_REGEX = re.compile(r"^[a-zA-Z][_a-zA-Z0-9]{0,30}$")
 TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
 

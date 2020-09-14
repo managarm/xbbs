@@ -90,7 +90,7 @@ class JobMessage(BaseMessage):
         "tool_repo": "string",
         "pkg_repo": "string",
         "?xbps_keys": V.Mapping(
-            re.compile("^([a-zA-Z0-9]{2}:){15}[a-zA-Z0-9]{2}$"), bytes
+            re.compile(r"^([a-zA-Z0-9]{2}:){15}[a-zA-Z0-9]{2}$"), bytes
         )
     })
 

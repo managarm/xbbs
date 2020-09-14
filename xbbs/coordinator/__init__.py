@@ -42,7 +42,7 @@ with V.parsing(required_properties=True,
                additional_properties=V.Object.REMOVE):
     @V.accepts(x=V.AnyOf("string", {"bind": "string", "connect": "string"}))
     def _receive_adaptor(x):
-        if type(x) == str:
+        if isinstance(x, str):
             return {"bind": x, "connect": x}
         return x
 
@@ -77,7 +77,7 @@ with V.parsing(required_properties=True,
 with V.parsing(required_properties=True, additional_properties=None):
     # { job_name: job }
     ARTIFACT_VALIDATOR = V.parse({"name": "string", "version": "string"})
-    JOB_REGEX = re.compile("^((package|tool):)?[a-zA-Z][a-zA-Z-_0-9.]*$")
+    JOB_REGEX = re.compile(r"^((package|tool):)?[a-zA-Z][a-zA-Z-_0-9.]*$")
     GRAPH_VALIDATOR = V.parse(V.Mapping(JOB_REGEX, {
         "products": {
             "tools": [ARTIFACT_VALIDATOR],
@@ -170,7 +170,7 @@ class Job:
     run_time = attr.ib(default=None)
 
     def fail(self, graph):
-        if self.status == Job.Status.RUNNING:
+        if self.status is Job.Status.RUNNING:
             self.status = Job.Status.WAITING_FOR_DONE
         else:
             self.status = Job.Status.FAILED
@@ -274,7 +274,7 @@ def solve_project(inst, projinfo):
         some_waiting = False
         for name, job in project.jobs.items():
             if all([x.received for x in job.products]) and \
-               job.status == Job.Status.RUNNING:
+               job.status is Job.Status.RUNNING:
                 job.status = Job.Status.WAITING_FOR_DONE
 
             if job.status not in [Job.Status.SUCCESS, Job.Status.FAILED]:
@@ -347,7 +347,7 @@ def solve_project(inst, projinfo):
                        for x in project.jobs.values())
             return all(not x.failed for x in project.tool_set.values()) and \
                 all(not x.failed for x in project.pkg_set.values()) and \
-                all(x.status == Job.Status.SUCCESS
+                all(x.status is Job.Status.SUCCESS
                     for x in project.jobs.values())
 
         project.artifact_received.wait()
@@ -455,9 +455,9 @@ def command_loop(inst, sock_cmd):
                 sock_cmd.send_multipart([b"204", msgpk.dumps("")])
                 continue
 
-            if type(value) == tuple:
+            if isinstance(value, tuple):
                 (code, value) = value
-                assert type(code) == int
+                assert isinstance(code, int)
                 code = str(code)
 
             sock_cmd.send_multipart([code.encode(), value])
@@ -680,8 +680,8 @@ def main():
             command_loop(inst, sock_cmd)
         finally:
             # XXX: This may not be the greatest way to handle this
-            gevent.killall(inst.project_greenlets[:], KeyboardInterrupt)
-            gevent.kill(intake, KeyboardInterrupt)
+            gevent.killall(inst.project_greenlets[:])
+            gevent.kill(intake)
             dumper.cancel()
 
 # TODO(arsen): make a clean exit

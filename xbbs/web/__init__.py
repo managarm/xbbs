@@ -108,7 +108,8 @@ def send_request(cmd, arg):
     with zctx.socket(zmq.REQ) as rsock:
         rsock.connect(coordinator)
         rsock.send_multipart([cmd, arg])
-        if rsock.poll(1500) == 0:
+        # this should be configurable
+        if not rsock.poll(timeout=1500):
             raise ServiceUnavailable()
         status, content = rsock.recv_multipart()
         # we only expect 200 from the server for a status request, because it's
@@ -279,7 +280,7 @@ def humanize_size(x):
 @app.template_filter("humanizeiso")
 def parse_and_humanize_iso(iso, *args, **kwargs):
     try:
-        if type(iso) == str:
+        if isinstance(iso, str):
             iso = datetime.strptime(iso, xutils.TIMESTAMP_FORMAT)
         return humanize.naturaltime(iso, *args, **kwargs)
     except ValueError:

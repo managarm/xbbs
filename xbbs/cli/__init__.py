@@ -18,12 +18,13 @@ subcommands = argparser.add_subparsers(
 
 
 def send_request(conn, cmd, arg):
-    if type(arg) == str:
+    if isinstance(arg, str):
         arg = arg.encode("us-ascii")
-    if type(cmd) == str:
+    if isinstance(cmd, str):
         cmd = cmd.encode("us-ascii")
     conn.send_multipart([cmd, arg])
-    if conn.poll(1500) == 0:
+    # this should be configurable
+    if not conn.poll(timeout=1500):
         raise RuntimeError("coordinator did not respond in time (1500ms)")
     (code, res) = conn.recv_multipart()
     if len(code) != 3:
