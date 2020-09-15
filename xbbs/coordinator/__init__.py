@@ -400,7 +400,7 @@ def run_project(inst, project):
     except Exception:
         log.exception("build failed due to an exception")
         length = 0
-        if start:
+        if start is not None:
             length = time.monotonic() - start
         store_jobs(inst, project, success=False, length=length)
     finally:
