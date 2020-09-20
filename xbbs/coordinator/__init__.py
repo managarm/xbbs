@@ -402,7 +402,8 @@ def run_project(inst, project):
         length = 0
         if start is not None:
             length = time.monotonic() - start
-        store_jobs(inst, project, success=False, length=length)
+        if isinstance(project.current, RunningProject):
+            store_jobs(inst, project, success=False, length=length)
     finally:
         project.current = None
 
