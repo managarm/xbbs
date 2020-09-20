@@ -129,11 +129,14 @@ def handle_backend_error(e):
 def overview():
     status = msgs.StatusMessage.unpack(send_request(b"status", b""))
     build_history = []
-    for project_name in os.listdir(projbase):
-        if not xutils.PROJECT_REGEX.match(project_name):
-            continue
+    for project_name in status.projects:
         project = path.join(projbase, project_name)
-        for build in os.listdir(project):
+        # I don't want deeper nesting code
+        try:
+            _listdir = os.listdir(project)
+        except NotADirectoryError:
+            continue
+        for build in _listdir:
             try:
                 build_ts = datetime.strptime(build, xutils.TIMESTAMP_FORMAT)
             except ValueError:
