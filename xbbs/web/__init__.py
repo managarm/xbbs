@@ -28,11 +28,6 @@ coordinator = os.environ["XBBS_COORDINATOR_ENDPOINT"]
 projbase = os.environ["XBBS_PROJECT_BASE"]
 zctx = zmq.Context.instance()
 
-if not coordinator:
-    raise ValueError("XBBS_COORDINATOR_ENDPOINT not set")
-if not projbase:
-    raise ValueError("XBBS_PROJECT_BASE not set")
-
 
 class BackendError(RuntimeError):
     status_code = 200
