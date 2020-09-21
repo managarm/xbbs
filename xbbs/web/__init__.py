@@ -244,18 +244,32 @@ def _read_repodata(ridx):
 @app.route("/project/<proj>/packages")
 def show_pkg_repo(proj):
     status = msgs.StatusMessage.unpack(send_request(b"status", b""))
+    if proj not in status.projects:
+        raise NotFound()
+    running = status.projects[proj]["running"]
     # TODO(arsen): architecture
-    ridx = safe_join(projbase, proj, "package_repo", "x86_64-repodata")
-    # TODO(arsen): saved repos
-    if not path.exists(ridx):
+    old = True
+    ridx_old = safe_join(projbase, proj, "package_repo.old", "x86_64-repodata")
+    ridx = ridx_old
+    if not running:
+        old = False
+        ridx = safe_join(projbase, proj, "package_repo", "x86_64-repodata")
+        if not path.exists(ridx):
+            old = True
+            ridx = ridx_old
+
+    try:
+        pkg_idx = gevent.get_hub().threadpool.spawn(_read_repodata, ridx).get()
+    except FileNotFoundError:
         # TODO(arsen): tell the user there's no repo (yet)
         raise NotFound()
-    pkg_idx = gevent.get_hub().threadpool.spawn(_read_repodata, ridx).get()
     return render_template("packages.html",
                            load=status.load,
                            host=status.hostname,
                            repodata=pkg_idx,
-                           project=proj
+                           project=proj,
+                           is_old=old,
+                           is_running=running
                            )
 
 
