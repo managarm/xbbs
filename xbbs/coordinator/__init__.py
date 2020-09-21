@@ -77,7 +77,7 @@ with V.parsing(required_properties=True,
 with V.parsing(required_properties=True, additional_properties=None):
     # { job_name: job }
     ARTIFACT_VALIDATOR = V.parse({"name": "string", "version": "string"})
-    JOB_REGEX = re.compile(r"^((package|tool):)?[a-zA-Z][a-zA-Z-_0-9.]*$")
+    JOB_REGEX = re.compile(r"^[a-z]+:[a-zA-Z][a-zA-Z-_0-9.]*$")
     GRAPH_VALIDATOR = V.parse(V.Mapping(JOB_REGEX, {
         "products": {
             "tools": [ARTIFACT_VALIDATOR],
