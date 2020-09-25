@@ -241,7 +241,9 @@ def _read_repodata(ridx):
                     return pkg_idx
 
 
-def repodata_file(status, proj):
+@app.route("/project/<proj>/packages")
+def show_pkg_repo(proj):
+    status = msgs.StatusMessage.unpack(send_request(b"status", b""))
     if proj not in status.projects:
         raise NotFound()
     running = status.projects[proj]["running"]
@@ -255,15 +257,6 @@ def repodata_file(status, proj):
         if not path.exists(ridx):
             old = True
             ridx = ridx_old
-
-    # FIXME(arsen): this sucks
-    return ridx, running, old
-
-
-@app.route("/project/<proj>/packages")
-def show_pkg_repo(proj):
-    status = msgs.StatusMessage.unpack(send_request(b"status", b""))
-    ridx, running, old = repodata_file(status, proj)
 
     try:
         pkg_idx = gevent.get_hub().threadpool.spawn(_read_repodata, ridx).get()
@@ -282,18 +275,13 @@ def show_pkg_repo(proj):
 
 @app.route("/project/<proj>/repo/<filename>")
 def dl_package(proj, filename):
-    status = msgs.StatusMessage.unpack(send_request(b"status", b""))
-    ridx, running, old = repodata_file(status, proj)
-    return send_from_directory(path.dirname(ridx), filename,
-                               as_attachment=True)
+    # XXX: check if coordinator is online?
+    # TODO(arsen): architecture
+    pkgf = safe_join(projbase, proj, "package_repo")
+    return send_from_directory(pkgf, filename, as_attachment=True)
 
 
-@app.template_filter("humanizedelta")
-def humanize_delta(x):
-    # XXX: workaround (this sucks)
-    if isinstance(x, int) and x < 1:
-        return "no time"
-    return humanize.naturaldelta(x)
+app.jinja_env.filters["humanizedelta"] = humanize.precisedelta
 
 
 @app.template_filter("humanizesize")
