@@ -363,7 +363,7 @@ def solve_project(inst, projinfo):
 def run_project(inst, project):
     start = None
     try:
-        projdir = path.join(project.base(inst), "repo")
+        projdir = path.join(project.base(inst), 'repo')
         os.makedirs(projdir, exist_ok=True)
         if not path.isdir(path.join(projdir, ".git")):
             check_call_logged(["git", "init"], cwd=projdir)
@@ -375,18 +375,13 @@ def run_project(inst, project):
                           cwd=projdir)
         rev = check_output_logged(["git", "rev-parse", "HEAD"],
                                   cwd=projdir).decode().strip()
-        tool_repo = path.join(project.base(inst), "tool_repo")
-        package_repo = path.join(project.base(inst), "package_repo")
-        old_repo = path.join(project.base(inst), "package_repo.old")
+        tool_repo = path.join(project.base(inst), 'tool_repo')
+        package_repo = path.join(project.base(inst), 'package_repo')
         # TODO(arsen): remove to support incremental compilation
         if path.isdir(tool_repo):
             shutil.rmtree(tool_repo)
         if path.isdir(package_repo):
-            try:
-                shutil.rmtree(old_repo)
-            except FileNotFoundError:
-                pass
-            shutil.move(package_repo, old_repo)
+            shutil.rmtree(package_repo)
         with tempfile.TemporaryDirectory(dir=inst.tmp_dir) as td:
             xutils.run_hook(log, projdir, td, "pregraph")
             check_call_logged(["xbstrap", "init", projdir], cwd=td)
