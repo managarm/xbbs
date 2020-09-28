@@ -2,6 +2,7 @@
 import gevent.monkey # noqa isort:skip
 if not gevent.monkey.is_module_patched("socket"): # noqa isort:skip
     gevent.monkey.patch_all() # noqa isort:skip
+import collections
 from datetime import datetime
 from flask import Flask, render_template, url_for, safe_join, make_response, \
     send_from_directory
@@ -163,10 +164,33 @@ def job_view(proj, ts):
     for k, v in build_info["jobs"].items():
         if os.access(path.join(build_info["base_dir"], f"{k}.log"), os.R_OK):
             v.update(log=url_for("show_log", proj=proj, ts=ts, job=k))
+        v.update(status=msgs.JobStatus[v["status"]])
+
+    grouped_jobs = collections.OrderedDict()
+    grouped_jobs[msgs.JobStatus.FAILED] = collections.OrderedDict()
+    for x in reversed(msgs.JobStatus):
+        if x == msgs.JobStatus.FAILED:
+            continue  # fail first
+        grouped_jobs[x] = collections.OrderedDict()
+
+    def _sort_key(x):
+        _name, data = x
+        kind, _, name = _name.partition(":")
+        if not name:
+            name = kind
+            kind = ""
+        return (kind, name)
+
+    for k, v in sorted(build_info["jobs"].items(), key=_sort_key):
+        vstatus = v["status"]
+        if any(x["failed"] for x in v["deps"]):
+            vstatus = msgs.JobStatus.PREREQUISITE_FAILED
+        grouped_jobs[vstatus][k] = v
     return render_template("jobs.html",
                            load=status.load,
                            host=status.hostname,
                            build=build_info,
+                           grouped_jobs=grouped_jobs,
                            ts=ts,
                            project=proj
                            )

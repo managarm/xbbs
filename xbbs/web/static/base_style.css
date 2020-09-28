@@ -136,3 +136,7 @@ iframe.seamless {
 table#project-list {
 	width: 100%;
 }
+
+th {
+	background: #eee;
+}

@@ -12,36 +12,15 @@
 	{{ product.kind|capitalize }}
 </code>
 {%- endmacro %}
-{%- block title %}Job view for {{ project }}{%- endblock %}
-{%- block col1 %}
-<h3>Job view</h3>
-	<strong>for {{ project }}</strong>
-	<br>{{ ts|humanizeiso }}<br>
-	{{ macros.build_status(build) }}
-	<a href="{{ url_for("show_log_list", proj=project, ts=ts) }}">
-		[all logs]
-	</a>
-{%- endblock %}
-{%- block col2 %}
-	<table class="color-rows fullwidth onethree-cols">
-{%- for name, job in build.jobs.items() %}
+{%- macro display_set(set) %}
+{%- for name, job in set.items() %}
 	<tr>
 		<td style="vertical-align: top;">
 {%- for product in job.products %}
 			<a id="prod-{{ product.kind }}-{{ product.name }}"></a>
 {%- endfor %}
 			<code>{{ name }}</code>
-{%- if job.status == "FAILED" %}
-			<div class="failed">Failure</div>
-{%- elif job.status == "SUCCESS" %}
-			<div class="success">Success</div>
-{%- elif job.status == "WAITING_FOR_DONE" %}
-			<div class="running">Finishing up...</div>
-{%- elif job.status == "RUNNING" %}
-			<div class="running">Scheduled</div>
-{%- elif job.status == "WAITING" %}
-			<div class="running">Waiting for needs</div>
-{%- endif %}
+			<div class="{{ job.status.kind }}">{{ job.status.pretty }}</div>
 {%- if "exit_code" is in(job) %}
 			Exit code: {{ job.exit_code }}<br>
 {%- else %}
@@ -91,6 +70,25 @@
 			</table>
 		</td>
 	</tr>
+{%- endfor %}
+{%- endmacro %}
+
+
+{%- block title %}Job view for {{ project }}{%- endblock %}
+{%- block col1 %}
+<h3>Job view</h3>
+	<strong>for {{ project }}</strong>
+	<br>{{ ts|humanizeiso }}<br>
+	{{ macros.build_status(build) }}
+	<a href="{{ url_for("show_log_list", proj=project, ts=ts) }}">
+		[all logs]
+	</a>
+{%- endblock %}
+{%- block col2 %}
+	<table class="color-rows fullwidth onethree-cols">
+{%- for k, v in grouped_jobs.items() if v %}
+		<tr><th colspan="2">{{ k.pretty }}</th></tr>
+		{{ display_set(v) }}
 {%- endfor %}
 	</table>
 {%- endblock %}
