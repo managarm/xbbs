@@ -10,8 +10,14 @@ Logs for {{ project }}/{{ job }} @ {{ ts }}
 	<br>{{ ts|humanizeiso }}<br>
 	{{ macros.build_status(build) }}
 {%- endblock %}
+{%- block head_extra %}
+<style>#col2 { display: flex; flex-direction: column; }</style>
+{%- endblock %}
 {%- block col2 %}
-	<iframe class="seamless" src="{{ raw }}" title="{{ job }} log"
+	<!-- use flex to work around chromium -->
+	<iframe class="seamless chromium-height-hack"
+		src="{{ raw }}" title="{{ job }} log"
+		style="flex-grow: 1;"
 		onload="this.contentWindow.scroll(0, this.contentWindow.scrollMaxY)">
 		get a better browser
 	</iframe>
