@@ -1,8 +1,28 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 import attr
+from enum import Enum
 import msgpack
 import valideer as V
 import re
+
+
+class JobStatus(Enum):
+    WAITING = (1, "Waiting", "running")
+    RUNNING = (2, "Scheduled", "running")  # kinda dumb
+    WAITING_FOR_DONE = (3, "Finishing up", "running")
+    FAILED = (4, "Failed", "failed")
+    SUCCESS = (5, "Success", "success")
+
+    # special values
+    PREREQUISITE_FAILED = (100, "Prerequisite failed", "failed")
+
+    @property
+    def pretty(self):
+        return self.value[1]
+
+    @property
+    def kind(self):
+        return self.value[2]
 
 
 class BaseMessage:

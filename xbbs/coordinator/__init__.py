@@ -162,18 +162,17 @@ class Artifact:
 class Job:
     # TODO(arsen): RUNNING is actually waiting to finish: it might say it's
     # running, but it's proobably not, and is instead stuck in the pipeline
-    Status = Enum("Status", "WAITING RUNNING WAITING_FOR_DONE FAILED SUCCESS")
     deps = attr.ib(factory=list)
     products = attr.ib(factory=list)
-    status = attr.ib(default=Status.WAITING)
+    status = attr.ib(default=msgs.JobStatus.WAITING)
     exit_code = attr.ib(default=None)
     run_time = attr.ib(default=None)
 
     def fail(self, graph):
-        if self.status is Job.Status.RUNNING:
-            self.status = Job.Status.WAITING_FOR_DONE
+        if self.status is msgs.JobStatus.RUNNING:
+            self.status = msgs.JobStatus.WAITING_FOR_DONE
         else:
-            self.status = Job.Status.FAILED
+            self.status = msgs.JobStatus.FAILED
 
         for prod in self.products:
             if prod.failed:
@@ -274,13 +273,14 @@ def solve_project(inst, projinfo):
         some_waiting = False
         for name, job in project.jobs.items():
             if all([x.received for x in job.products]) and \
-               job.status is Job.Status.RUNNING:
-                job.status = Job.Status.WAITING_FOR_DONE
+               job.status is msgs.JobStatus.RUNNING:
+                job.status = msgs.JobStatus.WAITING_FOR_DONE
 
-            if job.status not in [Job.Status.SUCCESS, Job.Status.FAILED]:
+            if job.status not in [msgs.JobStatus.SUCCESS,
+                                  msgs.JobStatus.FAILED]:
                 some_waiting = True
 
-            if job.status is not Job.Status.WAITING:
+            if job.status is not msgs.JobStatus.WAITING:
                 continue
 
             failed = False
@@ -318,7 +318,7 @@ def solve_project(inst, projinfo):
                 with open(pubkey, "rb") as pkf:
                     keys = {projinfo.fingerprint: pkf.read()}
 
-            job.status = Job.Status.RUNNING
+            job.status = msgs.JobStatus.RUNNING
             jobreq = msgs.JobMessage(
                 project=project.name,
                 job=name,
@@ -343,11 +343,12 @@ def solve_project(inst, projinfo):
         if not some_waiting:
             assert all(x.received for x in project.tool_set.values())
             assert all(x.received for x in project.pkg_set.values())
-            assert all(x.status in [Job.Status.SUCCESS, Job.Status.FAILED]
+            assert all(x.status in [msgs.JobStatus.SUCCESS,
+                                    msgs.JobStatus.FAILED]
                        for x in project.jobs.values())
             return all(not x.failed for x in project.tool_set.values()) and \
                 all(not x.failed for x in project.pkg_set.values()) and \
-                all(x.status is Job.Status.SUCCESS
+                all(x.status is msgs.JobStatus.SUCCESS
                     for x in project.jobs.values())
 
         project.artifact_received.wait()
@@ -610,9 +611,9 @@ def cmd_job(inst, value):
 
     job = proj.current.jobs[message.job]
     if message.exit_code == 0:
-        job.status = Job.Status.SUCCESS
+        job.status = msgs.JobStatus.SUCCESS
     else:
-        job.status = Job.Status.FAILED
+        job.status = msgs.JobStatus.FAILED
     job.exit_code = message.exit_code
     job.run_time = message.run_time
     proj.current.artifact_received.set()
