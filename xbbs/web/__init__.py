@@ -292,7 +292,13 @@ def dl_package(proj, filename):
     return send_from_directory(pkgf, filename, as_attachment=True)
 
 
-app.jinja_env.filters["humanizedelta"] = humanize.precisedelta
+@app.template_filter("humanizedelta")
+def humanize_delta(x):
+    if isinstance(x, str):
+        return x
+    if x < 1:
+        return "no time"
+    return humanize.precisedelta(x)
 
 
 @app.template_filter("humanizesize")
