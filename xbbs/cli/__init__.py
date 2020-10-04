@@ -1,14 +1,16 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 import gevent.monkey; gevent.monkey.patch_all() # noqa isort:skip
 import argparse
-import msgpack
 import os
 import os.path as path
 import sys
+
+import msgpack
 import toml
-from xbbs.coordinator import CONFIG_VALIDATOR
-import xbbs.messages as msgs
 import zmq.green as zmq
+
+import xbbs.messages as msgs
+from xbbs.coordinator import CONFIG_VALIDATOR
 
 zctx = zmq.Context.instance()
 argparser = argparse.ArgumentParser(description="xbbs remote control cli")

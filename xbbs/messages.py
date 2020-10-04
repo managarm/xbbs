@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-import attr
+import re
 from enum import Enum
+
+import attr
 import msgpack
 import valideer as V
-import re
 
 
 class JobStatus(Enum):

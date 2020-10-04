@@ -3,23 +3,24 @@ import gevent.monkey # noqa isort:skip
 if not gevent.monkey.is_module_patched("socket"): # noqa isort:skip
     gevent.monkey.patch_all() # noqa isort:skip
 import collections
-from datetime import datetime
-from flask import Flask, render_template, url_for, safe_join, make_response, \
-    send_from_directory
-from functools import wraps
 import json
-import humanize
-import msgpack
 import os
 import os.path as path
 import plistlib
 import tarfile
-from werkzeug.exceptions import NotFound, ServiceUnavailable
-import xbbs.messages as msgs
-import xbbs.util as xutils
+from datetime import datetime
+from functools import wraps
+
+import humanize
+import msgpack
 import zmq.green as zmq
 import zstandard
+from flask import (Flask, make_response, render_template, safe_join,
+                   send_from_directory, url_for)
+from werkzeug.exceptions import NotFound, ServiceUnavailable
 
+import xbbs.messages as msgs
+import xbbs.util as xutils
 
 app = Flask(__name__)
 app.use_x_sendfile = os.getenv("XBBS_USE_X_SENDFILE", "").lower() in [

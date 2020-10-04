@@ -1,26 +1,28 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 import gevent.monkey; gevent.monkey.patch_all() # noqa isort:skip
-import attr
-from functools import partial
-import gevent
-from hashlib import blake2b
-import gevent.fileobject as gfobj
-from logbook import Logger, StderrHandler, StreamHandler
-import toml
-import valideer as V
 import os
 import os.path as path
-import xbbs.util as xutils
-import xbbs.messages as msgs
-import zmq.green as zmq
-import requests
 import shutil
-from subprocess import check_call, Popen
 import subprocess
 import tarfile
 import time
+from functools import partial
+from hashlib import blake2b
+from subprocess import Popen, check_call
 from urllib.parse import urlparse
+
+import attr
+import gevent
+import gevent.fileobject as gfobj
+import requests
+import toml
+import valideer as V
 import yaml
+import zmq.green as zmq
+from logbook import Logger, StderrHandler, StreamHandler
+
+import xbbs.messages as msgs
+import xbbs.util as xutils
 
 with V.parsing(required_properties=True, additional_properties=None):
     CONFIG_VALIDATOR = V.parse({

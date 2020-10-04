@@ -1,15 +1,15 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-import attr
-import errno
 import contextlib
+import errno
 import fcntl
-import gevent.fileobject as gfobj
-import gevent.lock as glock
-import subprocess
 import os
 import os.path as path
 import re
+import subprocess
 
+import attr
+import gevent.fileobject as gfobj
+import gevent.lock as glock
 
 PROJECT_REGEX = re.compile(r"^[a-zA-Z][_a-zA-Z0-9]{0,30}$")
 TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S"
