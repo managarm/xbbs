@@ -148,6 +148,13 @@ def overview():
                 build_info.update(
                     jobs=url_for("job_view", proj=project_name, ts=build)
                 )
+                if path.isdir(path.join(project, build, "package_repo")):
+                    url = url_for("package_list",
+                                  proj=project_name,
+                                  ts=build
+                                  )
+                    build_info.update(pkgrepo=url)
+
             build_history.append(build_info)
     build_history.sort(key=lambda x: x["timestamp"], reverse=True)
     return render_template("overview.html",
@@ -266,32 +273,6 @@ def _read_repodata(ridx):
                     return pkg_idx
 
 
-@app.route("/project/<proj>/packages")
-def show_pkg_repo(proj):
-    status = msgs.StatusMessage.unpack(send_request(b"status", b""))
-    # TODO(arsen): architecture
-    ridx = safe_join(projbase, proj, "package_repo", "x86_64-repodata")
-    # TODO(arsen): saved repos
-    if not path.exists(ridx):
-        # TODO(arsen): tell the user there's no repo (yet)
-        raise NotFound()
-    pkg_idx = gevent.get_hub().threadpool.spawn(_read_repodata, ridx).get()
-    return render_template("packages.html",
-                           load=status.load,
-                           host=status.hostname,
-                           repodata=pkg_idx,
-                           project=proj
-                           )
-
-
-@app.route("/project/<proj>/repo/<filename>")
-def dl_package(proj, filename):
-    # XXX: check if coordinator is online?
-    # TODO(arsen): architecture
-    pkgf = safe_join(projbase, proj, "package_repo")
-    return send_from_directory(pkgf, filename, as_attachment=True)
-
-
 @app.template_filter("humanizedelta")
 def humanize_delta(x):
     if isinstance(x, str):
@@ -314,3 +295,80 @@ def parse_and_humanize_iso(iso, *args, **kwargs):
         return humanize.naturaltime(iso, *args, **kwargs)
     except ValueError:
         raise NotFound()
+
+
+def find_latest_build(status, proj):
+    project = safe_join(projbase, proj)
+    try:
+        _listdir = os.listdir(project)
+    except NotADirectoryError:
+        raise NotFound()
+
+    # XXX: could have been max() in python3.8 but the current target, 3.6, is
+    # missing the walrus operator
+    # XXX: preferably use some symlink thing to speed this process up?
+    latest_build_info = None
+    latest_build_dt = None
+    latest_build_ts = None
+    for x in _listdir:
+        try:
+            dt = datetime.strptime(x, xutils.TIMESTAMP_FORMAT)
+        except ValueError:
+            continue
+        bi = load_build(status, proj, x)
+        if not bi.get("success", False):
+            continue
+        if not latest_build_dt or dt > latest_build_dt:
+            latest_build_dt = dt
+            latest_build_ts = x
+            latest_build_info = bi
+
+    if not latest_build_dt:
+        raise NotFound()
+
+    return (latest_build_info, latest_build_ts)
+
+
+def render_pkgs_for_builds(status, proj, ts, build_info):
+    ridx = path.join(projbase, proj, ts, "package_repo", "x86_64-repodata")
+    if not path.exists(ridx):
+        # TODO(arsen): tell the user there's no repo (yet)
+        raise NotFound()
+    pkg_idx = gevent.get_hub().threadpool.spawn(_read_repodata, ridx).get()
+    return render_template("packages.html",
+                           load=status.load,
+                           host=status.hostname,
+                           repodata=pkg_idx,
+                           project=proj,
+                           ts=ts,
+                           build_info=build_info
+                           )
+
+
+@app.route("/project/<proj>/packages")
+@app.route("/project/<proj>/packages/<ts>")
+def package_list(proj, ts="latest"):
+    status = msgs.StatusMessage.unpack(send_request(b"status", b""))
+    if ts == "latest":
+        (build_info, ts) = find_latest_build(status, proj)
+    else:
+        build_info = load_build(status, proj, ts)
+    return render_pkgs_for_builds(status, proj, ts, build_info)
+
+
+@app.route("/repos/packages/<proj>/<ts>/<filename>")
+def dl_package(proj, ts, filename):
+    status = msgs.StatusMessage.unpack(send_request(b"status", b""))
+    if ts == "latest":
+        (info, ts) = find_latest_build(status, proj)
+    pkgf = safe_join(projbase, proj, ts, "package_repo")
+    return send_from_directory(pkgf, filename, as_attachment=True)
+
+
+@app.route("/repos/tools/<proj>/<ts>/<filename>")
+def dl_tool(proj, ts, filename):
+    status = msgs.StatusMessage.unpack(send_request(b"status", b""))
+    if ts == "latest":
+        (info, ts) = find_latest_build(status, proj)
+    pkgf = safe_join(projbase, proj, ts, "tool_repo")
+    return send_from_directory(pkgf, filename, as_attachment=True)

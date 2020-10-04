@@ -1,5 +1,6 @@
 {# SPDX-License-Identifier: AGPL-3.0-only #}
 {%- extends "base.html" %}
+{%- import "macros.html" as macros %}
 {%- macro string_optional(pkg, x) %}
 {%- if pkg[x] %}
 <strong>{{ x|capitalize|replace("_", " ")|replace("-", " ")}}:</strong>
@@ -15,6 +16,8 @@
 {%- block title %}{{ project }} packages{%- endblock %}
 {%- block col1 %}
 <h3>{{ project }} packages</h3>
+{{ ts|humanizeiso }}
+{{ macros.build_status(build_info) }}
 {%- endblock %}
 {%- block col2 %}
 	<table class="color-rows fullwidth onethree-cols">
@@ -24,6 +27,7 @@
 			<code>{{ pkg.pkgver }}</code><br>
 			<a href="{{ url_for("dl_package",
 						proj=project,
+						ts=ts,
 						filename=pkg.pkgver + "."
 							+ pkg.architecture
 							+ ".xbps") }}">

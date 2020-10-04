@@ -9,7 +9,7 @@
 		<tr class="project-item {{ item.classes|join(' ') }}">
 			<td class="project-name">
 				{{ name }}<br>
-				<a href="{{ url_for("show_pkg_repo", proj=name) }}">
+				<a href="{{ url_for("package_list", proj=name) }}">
 					[pkgs]
 				</a>
 			</td>
@@ -32,6 +32,9 @@
 {%- endif %}
 {%- if build.log %}
 		<a href="{{ build.log }}">[logs]</a>
+{%- endif %}
+{%- if build.pkgrepo %}
+		<a href="{{ build.pkgrepo }}">[pkgs]</a>
 {%- endif %}
 		<br>
 		{{ macros.build_status(build) }}
