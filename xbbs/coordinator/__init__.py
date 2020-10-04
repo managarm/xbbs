@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 import gevent.monkey; gevent.monkey.patch_all()  # noqa isort:skip
+import contextlib
 import datetime
 import json
 import os
@@ -378,13 +379,6 @@ def run_project(inst, project):
                           cwd=projdir)
         rev = check_output_logged(["git", "rev-parse", "HEAD"],
                                   cwd=projdir).decode().strip()
-        tool_repo = path.join(project.base(inst), 'tool_repo')
-        package_repo = path.join(project.base(inst), 'package_repo')
-        # TODO(arsen): remove to support incremental compilation
-        if path.isdir(tool_repo):
-            shutil.rmtree(tool_repo)
-        if path.isdir(package_repo):
-            shutil.rmtree(package_repo)
         with tempfile.TemporaryDirectory(dir=inst.tmp_dir) as td:
             xutils.run_hook(log, projdir, td, "pregraph")
             check_call_logged(["xbstrap", "init", projdir], cwd=td)
@@ -393,7 +387,18 @@ def run_project(inst, project):
                                                     "--artifacts", "--json"],
                                                    cwd=td).decode())
         project.current = RunningProject.parse_graph(project, rev, graph)
-        with xutils.lock_file(project.log(inst), "coordinator"):
+
+        @contextlib.contextmanager
+        def _current_symlink():
+            # XXX: if this fails two coordinators are running, perhaps that
+            # should be prevented somehow (lock on start)?
+            current_file = path.join(project.base(inst), "current")
+            yield os.symlink(project.log(inst), current_file)
+            os.unlink(current_file)
+
+        # XXX: keep last successful and currently running directory as links?
+        with xutils.lock_file(project.log(inst), "coordinator"), \
+             _current_symlink():
             start = time.monotonic()
             success = solve_project(inst, project)
             length = time.monotonic() - start
@@ -545,7 +550,7 @@ def cmd_artifact(inst, value):
             return
 
         aset = run.tool_set if message.artifact_type == "tool" else run.pkg_set
-        repo = path.abspath(path.join(proj.base(inst),
+        repo = path.abspath(path.join(proj.log(inst),
                             f"{message.artifact_type}_repo"))
         os.makedirs(repo, exist_ok=True)
 
