@@ -193,8 +193,10 @@ def run_job(inst, sock, job, logfd):
                                       inst, sock, job, kind, subject)
 
                 def _run_and_pop(f, p, s):
-                    f()
-                    p.pop(s)
+                    try:
+                        f()
+                    finally:
+                        p.pop(s)
 
                 task = gevent.spawn(_run_and_pop, repglet, prod_set, subject)
                 uploads.append(task)
