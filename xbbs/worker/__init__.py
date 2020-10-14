@@ -134,7 +134,8 @@ def run_job(inst, sock, job, logfd):
         runcmd(["git", "checkout", "--detach", job.revision],
                cwd=source_dir)
 
-        xutils.run_hook(log, source_dir, build_dir, "prejob", outfd=logfd)
+        xutils.run_hook(log, source_dir, build_dir, "prejob", outfd=logfd,
+                        XBBS_JOB=job.job)
 
         runcmd(["xbstrap", "init", source_dir], cwd=build_dir)
         with open(siteyaml_file, "w") as siteyml:
@@ -169,40 +170,52 @@ def run_job(inst, sock, job, logfd):
             os.close(write_end)
             del write_end
             del read_end
-            for x in parse_yaml_stream(progress):
-                # TODO(arsen): validate
-                log.debug("got notify {}", x)
-                subject = x["subject"]
-                action = x["action"]
-                status = x["status"]
-                # TODO(arsen): move filename generation to the stream
-                if action == "archive-tool":
-                    prod_set = job.prod_tools
-                    kind = "tool"
-                    filename = path.join(tools_dir, f"{subject}.tar.gz")
-                elif action == "pack":
-                    prod_set = job.prod_pkgs
-                    kind = "package"
-                    ver = job.prod_pkgs[subject]
-                    filename = path.join(repo_dir,
-                                         f"{subject}-{ver}.x86_64.xbps")
-                else:
-                    continue
-                if status == "success":
-                    repglet = partial(upload,
-                                      inst, sock, job, kind, subject, filename)
-                else:
-                    repglet = partial(send_fail,
-                                      inst, sock, job, kind, subject)
 
-                def _run_and_pop(f, p, s):
-                    try:
-                        f()
-                    finally:
+            def _run_and_pop(f, p, s):
+                try:
+                    f()
+                finally:
+                    if isinstance(p, list):
+                        p.remove(s)
+                    else:
                         p.pop(s)
 
-                task = gevent.spawn(_run_and_pop, repglet, prod_set, subject)
+            def _send_and_store(x, kind, filename, prod_set, entry_name=None):
+                status = x["status"]
+                subject = x["subject"]
+                entry_name = entry_name or subject
+                if status == "success":
+                    repglet = partial(upload,
+                                      inst, sock, job, kind, entry_name,
+                                      filename)
+                else:
+                    repglet = partial(send_fail,
+                                      inst, sock, job, kind, entry_name)
+
+                task = gevent.spawn(_run_and_pop, repglet, prod_set,
+                                    entry_name)
                 uploads.append(task)
+
+            for notif in parse_yaml_stream(progress):
+                # TODO(arsen): validate
+                log.debug("got notify {}", notif)
+                # TODO(arsen): move filename generation to the stream
+                action = notif["action"]
+                subject = notif["subject"]
+                artifact_files = notif["artifact_files"]
+                if action == "archive-tool":
+                    fn = path.join(tools_dir, f"{subject}.tar.gz")
+                    _send_and_store(notif, "tool", fn, job.prod_tools)
+                elif action == "pack":
+                    ver = job.prod_pkgs[subject]
+                    fn = path.join(repo_dir, f"{subject}-{ver}.x86_64.xbps")
+                    _send_and_store(notif, "package", fn, job.prod_pkgs)
+                elif len(artifact_files) == 0:
+                    continue
+                for x in artifact_files:
+                    _send_and_store(notif, "file", x["filepath"],
+                                    job.prod_files, x["name"])
+
         code = runner.returncode
         log.info("job done. return code: {}", runner.returncode)
     except KeyboardInterrupt:
@@ -229,6 +242,8 @@ def run_job(inst, sock, job, logfd):
             send_fail(inst, sock, job, "package", x)
         for x in job.prod_tools:
             send_fail(inst, sock, job, "tool", x)
+        for x in job.prod_files:
+            send_fail(inst, sock, job, "file", x)
 
 
 def collect_logs(job, output, fd):

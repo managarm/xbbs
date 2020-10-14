@@ -93,6 +93,7 @@ class JobMessage(BaseMessage):
     needed_tools = attr.ib()
     prod_pkgs = attr.ib()
     prod_tools = attr.ib()
+    prod_files = attr.ib()
     tool_repo = attr.ib()
     pkg_repo = attr.ib()
     # XXX: maybe it's worth doing something else
@@ -108,6 +109,7 @@ class JobMessage(BaseMessage):
         "needed_tools": PKG_TOOL_VALIDATOR,
         "prod_pkgs": PKG_TOOL_VALIDATOR,
         "prod_tools": PKG_TOOL_VALIDATOR,
+        "prod_files": ["string"],
         "tool_repo": "string",
         "pkg_repo": "string",
         "?xbps_keys": V.Mapping(
@@ -131,7 +133,7 @@ class ArtifactMessage(BaseMessage):
     last_hash = attr.ib(default=None)
     _validator = V.parse({
         "project": "string",
-        "artifact_type": V.Enum({"tool", "package"}),
+        "artifact_type": V.Enum({"tool", "package", "file"}),
         "artifact": "string",
         "success": "boolean",
         "?filename": "?string",

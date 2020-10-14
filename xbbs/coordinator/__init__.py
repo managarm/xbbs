@@ -3,6 +3,7 @@ import gevent.monkey; gevent.monkey.patch_all()  # noqa isort:skip
 import contextlib
 import datetime
 import json
+import operator
 import os
 import os.path as path
 import plistlib
@@ -84,7 +85,11 @@ with V.parsing(required_properties=True, additional_properties=None):
     GRAPH_VALIDATOR = V.parse(V.Mapping(JOB_REGEX, {
         "products": {
             "tools": [ARTIFACT_VALIDATOR],
-            "pkgs": [ARTIFACT_VALIDATOR]
+            "pkgs": [ARTIFACT_VALIDATOR],
+            "files": [V.AdaptBy(operator.itemgetter("name"), {
+                "name": "string",
+                "filepath": "string"
+            })]
         },
         "needed": {
             "tools": [ARTIFACT_VALIDATOR],
@@ -153,7 +158,7 @@ class Xbbs:
 
 @attr.s
 class Artifact:
-    Kind = Enum("Kind", "TOOL PACKAGE")
+    Kind = Enum("Kind", "TOOL PACKAGE FILE")
     kind = attr.ib()
     name = attr.ib()
     version = attr.ib()
@@ -197,6 +202,7 @@ class RunningProject:
     ts = attr.ib(factory=datetime.datetime.now)
 
     tool_set = attr.ib(factory=dict)
+    file_set = attr.ib(factory=dict)
     pkg_set = attr.ib(factory=dict)
 
     artifact_received = attr.ib(factory=gevent.event.Event)
@@ -208,6 +214,7 @@ class RunningProject:
         proj = cls(project.name, project.git, revision)
         tools = proj.tool_set
         pkgs = proj.pkg_set
+        files = proj.file_set
         for job, info in graph.items():
             # TODO(arsen): circ dep detection (low prio: handled in xbstrap)
             job_val = Job()
@@ -232,6 +239,11 @@ class RunningProject:
                 if name not in pkgs:
                     pkgs[name] = Artifact(Artifact.Kind.PACKAGE, **x)
                 job_val.products.append(pkgs[name])
+            for fname in info["products"]["files"]:
+                artifact = Artifact(Artifact.Kind.FILE,
+                                    name=fname, version=None)
+                job_val.products.append(artifact)
+                files[fname] = artifact
 
             proj.jobs[job] = job_val
 
@@ -312,6 +324,8 @@ def solve_project(inst, projinfo):
                           if x.kind is Artifact.Kind.TOOL}
             prod_pkgs = {x.name: x.version for x in job.products
                          if x.kind is Artifact.Kind.PACKAGE}
+            prod_files = [x.name for x in job.products
+                          if x.kind is Artifact.Kind.FILE]
             keys = {}
             if projinfo.fingerprint:
                 pubkey = path.join(projinfo.base(inst),
@@ -333,6 +347,7 @@ def solve_project(inst, projinfo):
                 needed_pkgs=needed_pkgs,
                 prod_pkgs=prod_pkgs,
                 prod_tools=prod_tools,
+                prod_files=prod_files,
                 tool_repo=projinfo.tools,
                 pkg_repo=projinfo.packages,
                 xbps_keys=keys
@@ -345,11 +360,13 @@ def solve_project(inst, projinfo):
         # TODO(arsen): handle the edge case in which workers are dead
         if not some_waiting:
             assert all(x.received for x in project.tool_set.values())
+            assert all(x.received for x in project.file_set.values())
             assert all(x.received for x in project.pkg_set.values())
             assert all(x.status in [msgs.JobStatus.SUCCESS,
                                     msgs.JobStatus.FAILED]
                        for x in project.jobs.values())
             return all(not x.failed for x in project.tool_set.values()) and \
+                all(not x.failed for x in project.file_set.values()) and \
                 all(not x.failed for x in project.pkg_set.values()) and \
                 all(x.status is msgs.JobStatus.SUCCESS
                     for x in project.jobs.values())
@@ -564,7 +581,14 @@ def cmd_artifact(inst, value):
         if not run:
             return
 
-        aset = run.tool_set if message.artifact_type == "tool" else run.pkg_set
+        if message.artifact_type == "tool":
+            aset = run.tool_set
+        elif message.artifact_type == "file":
+            aset = run.file_set
+        else:
+            assert message.artifact_type == "package"
+            aset = run.pkg_set
+
         repo = path.abspath(path.join(proj.log(inst),
                             f"{message.artifact_type}_repo"))
         os.makedirs(repo, exist_ok=True)
