@@ -74,6 +74,22 @@ do_build.parser = subcommands.add_parser(
 do_build.parser.add_argument("project", help="project to build")
 
 
+def do_fail(conn, args):
+    code, res = send_request(conn, "fail", msgpack.dumps(args.project))
+    if code == 204:
+        return
+    res = msgpack.loads(res)
+    print(f"coordinator responded with {code} {res}", file=sys.stderr)
+    exit(1)
+
+
+do_build.parser = subcommands.add_parser(
+    "fail",
+    help="fail all waiting jobs in a build"
+)
+do_build.parser.add_argument("project", help="project to fail")
+
+
 def main():
     XBBS_CFG_DIR = os.getenv("XBBS_CFG_DIR", "/etc/xbbs")
     with open(path.join(XBBS_CFG_DIR, "coordinator.toml"), "r") as fcfg:
@@ -88,6 +104,8 @@ def main():
         subcommand = do_status
     elif parsed.command == "build":
         subcommand = do_build
+    elif parsed.command == "fail":
+        subcommand = do_fail
     else:
         raise ValueError(f"unexpected command {parsed.command}")
 

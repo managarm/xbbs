@@ -431,6 +431,20 @@ def cmd_build(inst, name):
     inst.project_greenlets.append(pg)
 
 
+def cmd_fail(inst, name):
+    "fail any unstarted packages"
+    name = msgpk.loads(name)
+    if name not in inst.projects:
+        return 404, msgpk.dumps("unknown project")
+    proj = inst.projects[name]
+    if not proj.current:
+        return 409, msgpk.dumps("project not running")
+    for x in proj.current.jobs.values():
+        if x.state is not msgs.JobStatus.WAITING:
+            continue
+        x.fail(proj.current.jobs)
+
+
 def cmd_status(inst, _):
     projmap = {}
     for x in inst.projects.values():
@@ -489,6 +503,7 @@ def command_loop(inst, sock_cmd):
 
 command_loop.cmds = {
     "build": cmd_build,
+    "fail": cmd_fail,
     "status": cmd_status
 }
 
