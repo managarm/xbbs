@@ -36,6 +36,9 @@
 {%- if build.pkgrepo %}
 		<a href="{{ build.pkgrepo }}">[pkgs]</a>
 {%- endif %}
+{%- if build.filerepo %}
+		<a href="{{ build.filerepo }}">[files]</a>
+{%- endif %}
 		<br>
 		{{ macros.build_status(build) }}
 	</li>

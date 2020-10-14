@@ -154,6 +154,12 @@ def overview():
                                   ts=build
                                   )
                     build_info.update(pkgrepo=url)
+                if path.isdir(path.join(project, build, "file_repo")):
+                    url = url_for("file_list",
+                                  proj=project_name,
+                                  ts=build
+                                  )
+                    build_info.update(filerepo=url)
 
             build_history.append(build_info)
     build_history.sort(key=lambda x: x["timestamp"], reverse=True)
@@ -298,6 +304,11 @@ def parse_and_humanize_iso(iso, *args, **kwargs):
         raise NotFound()
 
 
+@app.template_filter("formatts")
+def format_timestamp(x):
+    return datetime.utcfromtimestamp(x).strftime("%d-%b-%Y %H:%m")
+
+
 def find_latest_build(status, proj):
     project = safe_join(projbase, proj)
     try:
@@ -346,6 +357,30 @@ def render_pkgs_for_builds(status, proj, ts, build_info):
                            )
 
 
+@app.route("/project/<proj>/files")
+@app.route("/project/<proj>/files/<ts>")
+def file_list(proj, ts="latest"):
+    status = msgs.StatusMessage.unpack(send_request(b"status", b""))
+    if ts == "latest":
+        (build_info, ts) = find_latest_build(status, proj)
+    else:
+        build_info = load_build(status, proj, ts)
+
+    file_repo = safe_join(projbase, proj, ts, "file_repo")
+    with os.scandir(file_repo) as it:
+        dirscan = list(it)
+
+    dirscan.sort(key=lambda x: x.name)
+    return render_template("files.html",
+                           load=status.load,
+                           host=status.hostname,
+                           project=proj,
+                           ts=ts,
+                           build_info=build_info,
+                           files=dirscan
+                           )
+
+
 @app.route("/project/<proj>/packages")
 @app.route("/project/<proj>/packages/<ts>")
 def package_list(proj, ts="latest"):
@@ -372,4 +407,13 @@ def dl_tool(proj, ts, filename):
     if ts == "latest":
         (info, ts) = find_latest_build(status, proj)
     pkgf = safe_join(projbase, proj, ts, "tool_repo")
+    return send_from_directory(pkgf, filename, as_attachment=True)
+
+
+@app.route("/repos/files/<proj>/<ts>/<filename>")
+def dl_file(proj, ts, filename):
+    status = msgs.StatusMessage.unpack(send_request(b"status", b""))
+    if ts == "latest":
+        (info, ts) = find_latest_build(status, proj)
+    pkgf = safe_join(projbase, proj, ts, "file_repo")
     return send_from_directory(pkgf, filename, as_attachment=True)

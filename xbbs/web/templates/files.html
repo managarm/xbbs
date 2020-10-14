@@ -1,0 +1,35 @@
+{# SPDX-License-Identifier: AGPL-3.0-only #}
+{%- extends "base.html" %}
+{%- import "macros.html" as macros %}
+{%- block title %}
+File products for {{ project }} @ {{ ts }}
+{%- endblock %}
+{%- block col1 %}
+	<h3>File products for {{ project }}</h3>
+	Started {{ ts|humanizeiso }}
+	{{ macros.build_status(build_info) }}
+{%- endblock %}
+{%- block col2 %}
+<table class="color-rows fullwidth onethree-cols">
+<tr>
+	<th>Name</th>
+	<th>Last modified</th>
+	<th>Size (in bytes)</th>
+</tr>
+{%- for x in files %}
+{%- set stat = x.stat() %}
+<tr style="font-family: monospace;">
+	<td><a href="{{ url_for("dl_file",
+				proj=project,
+				ts=ts,
+				filename=x.name)
+			}}">{{ x.name }}</a></td>
+	<td>{{ stat.st_mtime|formatts }}</td>
+	<td>{{ stat.st_size|humanizesize }} ({{ stat.st_size }})</td>
+</tr>
+{%- endfor %}
+</table>
+{%- endblock %}
+
+{# vim: ft=htmldjango :
+#}
