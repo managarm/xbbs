@@ -176,8 +176,9 @@ def job_view(proj, ts):
 
     grouped_jobs = collections.OrderedDict()
     grouped_jobs[msgs.JobStatus.FAILED] = collections.OrderedDict()
+    grouped_jobs[msgs.JobStatus.RUNNING] = collections.OrderedDict()
     for x in reversed(msgs.JobStatus):
-        if x == msgs.JobStatus.FAILED:
+        if x in grouped_jobs:
             continue  # fail first
         grouped_jobs[x] = collections.OrderedDict()
 
