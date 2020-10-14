@@ -53,19 +53,22 @@ CHUNK_SIZE = 32 * 1024
 
 
 def upload(inst, locked_sock, job, kind, name, fpath):
-    with gfobj.FileObjectThread(fpath, "rb") as toupload:
-        data = toupload.read(CHUNK_SIZE)
-        last_hash = b"initial"
-        while len(data):
-            m = msgs.ChunkMessage(last_hash, data).pack()
-            last_hash = blake2b(m).digest()
-            with locked_sock as sock:
-                sock.send_multipart([b"chunk", m])
+    try:
+        with gfobj.FileObjectThread(fpath, "rb") as toupload:
             data = toupload.read(CHUNK_SIZE)
-        with locked_sock as sock:
-            msg = msgs.ArtifactMessage(job.project, kind, name, True,
-                                       path.basename(fpath), last_hash)
-            sock.send_multipart([b"artifact", msg.pack()])
+            last_hash = b"initial"
+            while len(data):
+                m = msgs.ChunkMessage(last_hash, data).pack()
+                last_hash = blake2b(m).digest()
+                with locked_sock as sock:
+                    sock.send_multipart([b"chunk", m])
+                data = toupload.read(CHUNK_SIZE)
+            with locked_sock as sock:
+                msg = msgs.ArtifactMessage(job.project, kind, name, True,
+                                           path.basename(fpath), last_hash)
+                sock.send_multipart([b"artifact", msg.pack()])
+    except FileNotFoundError:
+        send_fail(inst, locked_sock, job, kind, name)
 
 
 def send_fail(inst, locked_sock, job, kind, name):
