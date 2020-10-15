@@ -5,7 +5,7 @@ RUN mkdir /builder
 RUN chmod 1777 /builder
 # until xbstrap updates and xbbs is released
 RUN pip3 install -U https://github.com/managarm/xbstrap/archive/master.zip
-RUN pip3 install https://owo.codes/ArsenArsen/xbbs/-/archive/master/xbbs-master.tar.gz
+RUN pip3 install -U https://github.com/managarm/xbbs/archive/master.zip
 RUN apt-get update && apt-get install -y libguestfs-tools
 RUN mkdir /etc/xbbs
 RUN mkdir -p /var/local
