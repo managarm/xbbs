@@ -411,8 +411,10 @@ def run_project(inst, project):
             # should be prevented somehow (lock on start)?
             current_file = path.join(project.base(inst), "current")
             datedir = project.current.ts.strftime(xutils.TIMESTAMP_FORMAT)
-            yield os.symlink(datedir, current_file)
-            os.unlink(current_file)
+            try:
+                yield os.symlink(datedir, current_file)
+            finally:
+                os.unlink(current_file)
 
         # XXX: keep last successful and currently running directory as links?
         with xutils.lock_file(project.log(inst), "coordinator"), \
