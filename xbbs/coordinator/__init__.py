@@ -410,7 +410,8 @@ def run_project(inst, project):
             # XXX: if this fails two coordinators are running, perhaps that
             # should be prevented somehow (lock on start)?
             current_file = path.join(project.base(inst), "current")
-            yield os.symlink(project.log(inst), current_file)
+            datedir = project.current.ts.strftime(xutils.TIMESTAMP_FORMAT)
+            yield os.symlink(datedir, current_file)
             os.unlink(current_file)
 
         # XXX: keep last successful and currently running directory as links?
