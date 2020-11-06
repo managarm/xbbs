@@ -43,9 +43,14 @@ class BackendError(RuntimeError):
 
 def load_build(status, proj, ts):
     base_dir = safe_join(projbase, proj, ts)
+    if not path.isdir(base_dir):
+        raise NotFound()
     try:
         with open(path.join(base_dir, "coordinator")) as f:
             build = json.load(f)
+    except json.JSONDecodeError:
+        # this is a corrupted build, ignore it
+        raise NotFound()
     except FileNotFoundError:
         build = {
             "running": True,
