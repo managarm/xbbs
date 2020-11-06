@@ -460,7 +460,7 @@ def cmd_fail(inst, name):
     if not proj.current:
         return 409, msgpk.dumps("project not running")
     for x in proj.current.jobs.values():
-        if x.state is not msgs.JobStatus.WAITING:
+        if x.status is not msgs.JobStatus.WAITING:
             continue
         x.fail(proj.current.jobs)
 
