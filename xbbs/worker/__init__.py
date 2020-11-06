@@ -148,11 +148,11 @@ def run_job(inst, sock, job, logfd):
                 keyfile = path.join(keysdir, f"{fingerprint}.plist")
                 with open(keyfile, "wb") as pkf:
                     pkf.write(pubkey)
-        for x in job.needed_pkgs:
+        if len(job.needed_pkgs):
             runcmd(["xbps-install", "-vy",
                     "-R", process_repo_url(job.pkg_repo),
                     "-r", sysroot,
-                    "-SM", x])
+                    "-SM", "--"] + list(job.needed_pkgs))
         for x in job.needed_tools:
             tool_dir = path.join(tools_dir, x)
             os.mkdir(tool_dir)
