@@ -504,6 +504,7 @@ def cmd_fail(inst, name):
         if x.status is not msgs.JobStatus.WAITING:
             continue
         x.fail(proj.current.jobs)
+    proj.current.artifact_received.set()
 
 
 def cmd_status(inst, _):
