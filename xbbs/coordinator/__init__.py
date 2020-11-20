@@ -641,6 +641,7 @@ def cmd_artifact(inst, value):
     except Exception:
         if artifact:
             artifact.failed = True
+            run.artifact_received.set()
         raise
     finally:
         try:
