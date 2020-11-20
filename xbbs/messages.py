@@ -25,6 +25,19 @@ class JobStatus(Enum):
     def kind(self):
         return self.value[2]
 
+    @property
+    def terminating(self):
+        return self in [
+            JobStatus.FAILED,
+            JobStatus.SUCCESS,
+        ]
+
+    @property
+    def successful(self):
+        return self in [
+            JobStatus.SUCCESS,
+        ]
+
 
 class BaseMessage:
     _filter = None

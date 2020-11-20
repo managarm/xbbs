@@ -291,8 +291,7 @@ def solve_project(inst, projinfo):
                job.status is msgs.JobStatus.RUNNING:
                 job.status = msgs.JobStatus.WAITING_FOR_DONE
 
-            if job.status not in [msgs.JobStatus.SUCCESS,
-                                  msgs.JobStatus.FAILED]:
+            if not job.status.terminating:
                 some_waiting = True
 
             if job.status is not msgs.JobStatus.WAITING:
@@ -362,14 +361,11 @@ def solve_project(inst, projinfo):
             assert all(x.received for x in project.tool_set.values())
             assert all(x.received for x in project.file_set.values())
             assert all(x.received for x in project.pkg_set.values())
-            assert all(x.status in [msgs.JobStatus.SUCCESS,
-                                    msgs.JobStatus.FAILED]
-                       for x in project.jobs.values())
+            assert all(x.status.terminating for x in project.jobs.values())
             return all(not x.failed for x in project.tool_set.values()) and \
                 all(not x.failed for x in project.file_set.values()) and \
                 all(not x.failed for x in project.pkg_set.values()) and \
-                all(x.status is msgs.JobStatus.SUCCESS
-                    for x in project.jobs.values())
+                all(x.status.successful for x in project.jobs.values())
 
         project.artifact_received.wait()
 
