@@ -4,12 +4,15 @@ import errno
 import fcntl
 import os
 import os.path as path
+import plistlib
 import re
 import subprocess
+import tarfile
 
 import attr
 import gevent.fileobject as gfobj
 import gevent.lock as glock
+import zstandard
 
 PROJECT_REGEX = re.compile(r"^[a-zA-Z][_a-zA-Z0-9]{0,30}$")
 TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S"
@@ -76,3 +79,16 @@ def is_locked(tdir, category, pid):
         if e.errno == errno.EWOULDBLOCK:
             return True
         raise
+
+
+def read_xbps_repodata(ridx):
+    with open(ridx, "rb") as zidx:
+        dctx = zstandard.ZstdDecompressor()
+        with dctx.stream_reader(zidx) as reader, \
+             tarfile.open(fileobj=reader, mode="r|") as t:
+            for x in t:
+                if x.name != "index.plist":
+                    continue
+                with t.extractfile(x) as idxpl:
+                    pkg_idx = plistlib.load(idxpl, fmt=plistlib.FMT_XML)
+                    return pkg_idx

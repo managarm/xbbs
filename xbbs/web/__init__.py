@@ -6,15 +6,12 @@ import collections
 import json
 import os
 import os.path as path
-import plistlib
-import tarfile
 from datetime import datetime
 from functools import wraps
 
 import humanize
 import msgpack
 import zmq.green as zmq
-import zstandard
 from flask import (Flask, make_response, render_template, safe_join,
                    send_from_directory, url_for)
 from werkzeug.exceptions import NotFound, ServiceUnavailable
@@ -272,19 +269,6 @@ def show_raw_log(proj, ts, job):
                                mimetype="text/plain")
 
 
-def _read_repodata(ridx):
-    with open(ridx, "rb") as zidx:
-        dctx = zstandard.ZstdDecompressor()
-        with dctx.stream_reader(zidx) as reader, \
-             tarfile.open(fileobj=reader, mode="r|") as t:
-            for x in t:
-                if x.name != "index.plist":
-                    continue
-                with t.extractfile(x) as idxpl:
-                    pkg_idx = plistlib.load(idxpl, fmt=plistlib.FMT_XML)
-                    return pkg_idx
-
-
 @app.template_filter("humanizedelta")
 def humanize_delta(x):
     if isinstance(x, str):
@@ -351,7 +335,9 @@ def render_pkgs_for_builds(status, proj, ts, build_info):
     if not path.exists(ridx):
         # TODO(arsen): tell the user there's no repo (yet)
         raise NotFound()
-    pkg_idx = gevent.get_hub().threadpool.spawn(_read_repodata, ridx).get()
+    # gone over line limit
+    _tp = gevent.get_hub().threadpool
+    pkg_idx = _tp.spawn(xutils.read_xbps_repodata, ridx).get()
     return render_template("packages.html",
                            load=status.load,
                            host=status.hostname,
