@@ -83,6 +83,7 @@ with V.parsing(required_properties=True, additional_properties=None):
     ARTIFACT_VALIDATOR = V.parse({"name": "string", "version": "string"})
     JOB_REGEX = re.compile(r"^[a-z]+:[a-zA-Z][a-zA-Z-_0-9.]*$")
     GRAPH_VALIDATOR = V.parse(V.Mapping(JOB_REGEX, {
+        "up2date": "boolean",
         "products": {
             "tools": [ARTIFACT_VALIDATOR],
             "pkgs": [ARTIFACT_VALIDATOR],
@@ -245,6 +246,12 @@ class RunningProject:
                 job_val.products.append(artifact)
                 files[fname] = artifact
 
+            if info["up2date"]:
+                job_val.status = msgs.JobStatus.UP_TO_DATE
+                for prod in job_val.products:
+                    prod.received = True
+                    prod.failed = False
+
             proj.jobs[job] = job_val
 
         return proj
@@ -377,6 +384,24 @@ def solve_project(inst, projinfo):
 # xterm-{256,}color does, since it is widely adopted and assumed.
 
 
+def _load_version_information(inst, project):
+    pkgs = {}
+    tools = {}
+    # TODO: multiarch
+    rdf = path.join(project.base(inst), "rolling/package_repo/x86_64-repodata")
+    try:
+        rd = xutils.read_xbps_repodata(rdf)
+        for pkg in rd:
+            pkgs[pkg] = rd[pkg]["pkgver"].rpartition("-")[2]
+    except FileNotFoundError as e:
+        log.debug("no verinfo, cannot open repodata: {}", e)
+        pass
+
+    # TODO: discover tool versions. for now, it is ignored by xbstrap and
+    # always rebuilt anyways.
+    return {"pkgs": pkgs, "tools": tools}
+
+
 def run_project(inst, project):
     start = None
     try:
@@ -395,10 +420,14 @@ def run_project(inst, project):
         with tempfile.TemporaryDirectory(dir=inst.tmp_dir) as td:
             xutils.run_hook(log, projdir, td, "pregraph")
             check_call_logged(["xbstrap", "init", projdir], cwd=td)
-            graph = json.loads(check_output_logged(["xbstrap-pipeline",
-                                                    "compute-graph",
-                                                    "--artifacts", "--json"],
-                                                   cwd=td).decode())
+            vi = _load_version_information(inst, project)
+            log.debug("verinfo collected: {}", vi)
+            # XXX: this code may need some cleaning, for readability sake.
+            graph = json.loads(check_output_logged([
+                "xbstrap-pipeline", "compute-graph",
+                "--version-file", "fd:0",
+                "--artifacts", "--json"
+            ], cwd=td, input=json.dumps(vi).encode()).decode())
         project.current = RunningProject.parse_graph(project, rev, graph)
 
         @contextlib.contextmanager
@@ -415,6 +444,22 @@ def run_project(inst, project):
         # XXX: keep last successful and currently running directory as links?
         with xutils.lock_file(project.log(inst), "coordinator"), \
              _current_symlink():
+            package_repo = path.join(project.log(inst), "package_repo")
+            roll_repo = path.join(project.base(inst), "rolling/package_repo")
+            if path.exists(roll_repo):
+                log.info("populating build repository with up-to-date pkgs")
+                os.makedirs(package_repo, exist_ok=True)
+                for x in project.current.pkg_set.values():
+                    if not x.received:
+                        continue
+                    fname = f"{x.name}-{x.version}.x86_64.xbps"
+                    target_file = path.join(package_repo, fname)
+                    # does the user deserve an error if they delete a package?
+                    shutil.copy2(path.join(roll_repo, fname),
+                                 target_file, follow_symlinks=False)
+                    check_call_logged(["xbps-rindex", "-fa", target_file])
+                    maybe_sign_artifact(inst, target_file, project)
+
             start = time.monotonic()
             success = solve_project(inst, project)
             length = time.monotonic() - start
