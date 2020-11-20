@@ -590,7 +590,10 @@ def cmd_artifact(inst, value):
 
         repo = path.abspath(path.join(proj.log(inst),
                             f"{message.artifact_type}_repo"))
+        repo_roll = path.abspath(path.join(proj.base(inst), "rolling",
+                                 f"{message.artifact_type}_repo"))
         os.makedirs(repo, exist_ok=True)
+        os.makedirs(repo_roll, exist_ok=True)
 
         if message.artifact not in aset:
             return
@@ -608,10 +611,28 @@ def cmd_artifact(inst, value):
 
         try:
             artifact_file = path.join(repo, message.filename)
+            artifact_roll = path.join(repo_roll, message.filename)
             shutil.move(target, artifact_file)
             if artifact.kind == Artifact.Kind.PACKAGE:
                 check_call_logged(["xbps-rindex", "-fa", artifact_file])
+                if not path.exists(artifact_roll):
+                    shutil.copy2(artifact_file, artifact_roll)
+                    # we don't -f this one, because we want the most up-to-date
+                    # here
+                    check_call_logged(["xbps-rindex", "-a", artifact_roll])
+                    # clean up rolling repo
+                    check_call_logged(["xbps-rindex", "-r", repo_roll])
+                else:
+                    with open(artifact_file, "rb") as f:
+                        h1 = xutils.hash_file(f)
+                    with open(artifact_roll, "rb") as f:
+                        h2 = xutils.hash_file(f)
+                    if h1 != h2:
+                        log.error("{} hash changed, but pkgver didn't!",
+                                  artifact)
                 maybe_sign_artifact(inst, artifact_file, proj)
+                maybe_sign_artifact(inst, artifact_roll, proj)
+            # TODO: rolling repo for tools
         except Exception as e:
             log.exception("artifact deposit failed", e)
             artifact.failed = True

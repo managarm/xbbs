@@ -2,6 +2,7 @@
 import contextlib
 import errno
 import fcntl
+import hashlib
 import os
 import os.path as path
 import plistlib
@@ -92,3 +93,12 @@ def read_xbps_repodata(ridx):
                 with t.extractfile(x) as idxpl:
                     pkg_idx = plistlib.load(idxpl, fmt=plistlib.FMT_XML)
                     return pkg_idx
+
+
+def hash_file(fobj, hashfunc=hashlib.blake2b):
+    buf = fobj.read(16 * 1024)
+    h = hashfunc()
+    while buf:
+        h.update(buf)
+        buf = fobj.read(16 * 1024)
+    return h.digest()
