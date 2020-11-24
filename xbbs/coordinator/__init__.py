@@ -70,7 +70,8 @@ with V.parsing(required_properties=True,
             "?classes": V.Nullable(["string"], []),
             "packages": "string",
             "?fingerprint": "string",
-            "tools": "string"
+            "tools": "string",
+            "?incremental": "boolean"
         })
     })
     PUBKEY_VALIDATOR = V.parse({
@@ -107,6 +108,7 @@ class Project:
     classes = attr.ib()
     packages = attr.ib()
     tools = attr.ib()
+    incremental = attr.ib(default=False)
     fingerprint = attr.ib(default=None)
     current = attr.ib(default=None)
 
@@ -420,14 +422,22 @@ def run_project(inst, project):
         with tempfile.TemporaryDirectory(dir=inst.tmp_dir) as td:
             xutils.run_hook(log, projdir, td, "pregraph")
             check_call_logged(["xbstrap", "init", projdir], cwd=td)
-            vi = _load_version_information(inst, project)
-            log.debug("verinfo collected: {}", vi)
-            # XXX: this code may need some cleaning, for readability sake.
-            graph = json.loads(check_output_logged([
+            xbargs = [
                 "xbstrap-pipeline", "compute-graph",
-                "--version-file", "fd:0",
                 "--artifacts", "--json"
-            ], cwd=td, input=json.dumps(vi).encode()).decode())
+            ]
+            stdinarg = {}
+            if project.incremental:
+                vi = _load_version_information(inst, project)
+                stdinarg = dict(input=json.dumps(vi).encode())
+                xbargs.extend(["--version-file", "fd:0"])
+                log.debug("verinfo collected: {}", vi)
+            # XXX: this code may need some cleaning, for readability sake.
+            graph = json.loads(check_output_logged(
+                xbargs,
+                cwd=td,
+                **stdinarg
+            ).decode())
         project.current = RunningProject.parse_graph(project, rev, graph)
 
         @contextlib.contextmanager
@@ -446,7 +456,7 @@ def run_project(inst, project):
              _current_symlink():
             package_repo = path.join(project.log(inst), "package_repo")
             roll_repo = path.join(project.base(inst), "rolling/package_repo")
-            if path.exists(roll_repo):
+            if path.exists(roll_repo) and project.incremental:
                 log.info("populating build repository with up-to-date pkgs")
                 os.makedirs(package_repo, exist_ok=True)
                 for x in project.current.pkg_set.values():
