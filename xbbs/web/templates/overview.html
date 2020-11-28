@@ -12,7 +12,12 @@
 				<a href="{{ url_for("package_list", proj=name) }}">
 					[pkgs]
 				</a>
+{%- if item.rolling_pkgs %}
+				<a href="{{ url_for("package_list", ts="rolling", proj=name) }}">
+					[rolling pkgs]
+				</a>
 			</td>
+{%- endif %}
 			<td class="project-desc">
 				{{ item.description }}
 			</td>

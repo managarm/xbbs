@@ -16,8 +16,12 @@
 {%- block title %}{{ project }} packages{%- endblock %}
 {%- block col1 %}
 <h3>{{ project }} packages</h3>
+{%- if ts != "rolling" %}
 {{ ts|humanizeiso }}
 {{ macros.build_status(build_info) }}
+{%- else %}
+Rolling repository
+{%- endif %}
 {%- endblock %}
 {%- block col2 %}
 	<table class="color-rows fullwidth onethree-cols">

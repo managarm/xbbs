@@ -135,6 +135,8 @@ def overview():
             _listdir = os.listdir(project)
         except NotADirectoryError:
             continue
+        if path.isdir(path.join(project, "rolling/package_repo")):
+            status.projects[project_name].update(rolling_pkgs=True)
         for build in _listdir:
             try:
                 build_ts = datetime.strptime(build, xutils.TIMESTAMP_FORMAT)
@@ -378,6 +380,8 @@ def package_list(proj, ts="latest"):
     status = msgs.StatusMessage.unpack(send_request(b"status", b""))
     if ts == "latest":
         (build_info, ts) = find_latest_build(status, proj)
+    elif ts == "rolling":
+        build_info = {}
     else:
         build_info = load_build(status, proj, ts)
     return render_pkgs_for_builds(status, proj, ts, build_info)
