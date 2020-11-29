@@ -14,7 +14,11 @@
 {%- macro build_status(build) %}
 {%- if build.success %}
 	<div class="success">Build successful
-	in {{ build.run_time|humanizedelta }}</div>
+	in {{ build.run_time|humanizedelta }}
+{%- if build.failures %}
+	({{ build.failures }} jobs failed)
+{%- endif %}
+	</div>
 {%- elif build.running %}
 	<div class="running">Build running...</div>
 {%- elif not build.finished %}

@@ -52,6 +52,12 @@ def load_build(status, proj, ts):
         build = {
             "running": True,
         }
+    failures = 0
+    for job in build["jobs"].values():
+        jstatus = job["status"]
+        if jstatus == "IGNORED_FAILURE":
+            failures += 1
+    build["failures"] = failures
     build["finished"] = True
     build["running"] = xutils.is_locked(base_dir, "coordinator", status.pid)
     if "run_time" not in build:

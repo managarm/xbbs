@@ -85,6 +85,7 @@ with V.parsing(required_properties=True, additional_properties=None):
     JOB_REGEX = re.compile(r"^[a-z]+:[a-zA-Z][a-zA-Z-_0-9.]*$")
     GRAPH_VALIDATOR = V.parse(V.Mapping(JOB_REGEX, {
         "up2date": "boolean",
+        "unstable": "boolean",
         "products": {
             "tools": [ARTIFACT_VALIDATOR],
             "pkgs": [ARTIFACT_VALIDATOR],
@@ -173,6 +174,7 @@ class Artifact:
 class Job:
     # TODO(arsen): RUNNING is actually waiting to finish: it might say it's
     # running, but it's proobably not, and is instead stuck in the pipeline
+    unstable = attr.ib()
     deps = attr.ib(factory=list)
     products = attr.ib(factory=list)
     status = attr.ib(default=msgs.JobStatus.WAITING)
@@ -183,7 +185,8 @@ class Job:
         if self.status is msgs.JobStatus.RUNNING:
             self.status = msgs.JobStatus.WAITING_FOR_DONE
         else:
-            self.status = msgs.JobStatus.FAILED
+            self.status = msgs.JobStatus.IGNORED_FAILURE if self.unstable \
+                    else msgs.JobStatus.FAILED
 
         for prod in self.products:
             if prod.failed:
@@ -220,7 +223,7 @@ class RunningProject:
         files = proj.file_set
         for job, info in graph.items():
             # TODO(arsen): circ dep detection (low prio: handled in xbstrap)
-            job_val = Job()
+            job_val = Job(unstable=info["unstable"])
             for x in info["needed"]["tools"]:
                 name = x["name"]
                 if name not in tools:
@@ -371,10 +374,7 @@ def solve_project(inst, projinfo):
             assert all(x.received for x in project.file_set.values())
             assert all(x.received for x in project.pkg_set.values())
             assert all(x.status.terminating for x in project.jobs.values())
-            return all(not x.failed for x in project.tool_set.values()) and \
-                all(not x.failed for x in project.file_set.values()) and \
-                all(not x.failed for x in project.pkg_set.values()) and \
-                all(x.status.successful for x in project.jobs.values())
+            return all(x.status.successful for x in project.jobs.values())
 
         project.artifact_received.wait()
 
@@ -736,7 +736,8 @@ def cmd_job(inst, value):
     if message.exit_code == 0:
         job.status = msgs.JobStatus.SUCCESS
     else:
-        job.status = msgs.JobStatus.FAILED
+        job.status = msgs.JobStatus.IGNORED_FAILURE if job.unstable \
+                else msgs.JobStatus.FAILED
     job.exit_code = message.exit_code
     job.run_time = message.run_time
     proj.current.artifact_received.set()
