@@ -17,6 +17,7 @@ class JobStatus(Enum):
     # special values
     PREREQUISITE_FAILED = (100, "Prerequisite failed", "failed")
     UP_TO_DATE = (101, "Up to date", "success")
+    IGNORED_FAILURE = (102, "Ignored failure", "failed")
 
     @property
     def pretty(self):
@@ -31,6 +32,7 @@ class JobStatus(Enum):
         return self in [
             JobStatus.FAILED,
             JobStatus.SUCCESS,
+            JobStatus.IGNORED_FAILURE,
             JobStatus.UP_TO_DATE
         ]
 
@@ -38,6 +40,7 @@ class JobStatus(Enum):
     def successful(self):
         return self in [
             JobStatus.SUCCESS,
+            JobStatus.IGNORED_FAILURE,
             JobStatus.UP_TO_DATE
         ]
 
