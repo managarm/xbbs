@@ -115,6 +115,7 @@ class JobMessage(BaseMessage):
     prod_files = attr.ib()
     tool_repo = attr.ib()
     pkg_repo = attr.ib()
+    rolling_ids = attr.ib()
     # XXX: maybe it's worth doing something else
     xbps_keys = attr.ib(default=None, repr=False)
     _validator = V.parse({
@@ -131,6 +132,7 @@ class JobMessage(BaseMessage):
         "prod_files": ["string"],
         "tool_repo": "string",
         "pkg_repo": "string",
+        "rolling_ids": PKG_TOOL_VALIDATOR,
         "?xbps_keys": V.Mapping(
             re.compile(r"^([a-zA-Z0-9]{2}:){15}[a-zA-Z0-9]{2}$"), bytes
         )

@@ -216,14 +216,16 @@ class RunningProject:
     tool_set = attr.ib(factory=dict)
     file_set = attr.ib(factory=dict)
     pkg_set = attr.ib(factory=dict)
+    rolling_ids = attr.ib(factory=dict)
 
     artifact_received = attr.ib(factory=gevent.event.Event)
 
     @classmethod
-    def parse_graph(cls, project, revision, graph):
+    def parse_graph(cls, project, revision, graph, rolling_ids):
         graph = GRAPH_VALIDATOR.validate(graph)
 
         proj = cls(project.name, project.git, revision)
+        proj.rolling_ids = rolling_ids
         tools = proj.tool_set
         pkgs = proj.pkg_set
         files = proj.file_set
@@ -367,6 +369,7 @@ def solve_project(inst, projinfo):
                 prod_files=prod_files,
                 tool_repo=projinfo.tools,
                 pkg_repo=projinfo.packages,
+                rolling_ids=project.rolling_ids,
                 xbps_keys=keys
             )
             log.debug("sending job request {}", jobreq)
@@ -426,8 +429,22 @@ def run_project(inst, project):
         rev = check_output_logged(["git", "rev-parse", "HEAD"],
                                   cwd=projdir).decode().strip()
         with tempfile.TemporaryDirectory(dir=inst.tmp_dir) as td:
+            # XXX: these could probably be improved to not load the whole JSONs
+            #      into memory
             xutils.run_hook(log, projdir, td, "pregraph")
             check_call_logged(["xbstrap", "init", projdir], cwd=td)
+
+            check_call_logged(["xbstrap", "rolling-versions", "fetch"], cwd=td)
+            rolling_ids = json.loads(check_output_logged([
+                "xbstrap", "rolling-versions", "determine", "--json"
+            ], cwd=td).decode())
+            with open(path.join(projdir, "bootstrap-commits.yml"), "w") as rf:
+                json.dump({
+                    "commits": {
+                        x: {"rolling_id": y} for x, y in rolling_ids.items()
+                    }
+                }, rf)
+
             xbargs = [
                 "xbstrap-pipeline", "compute-graph",
                 "--artifacts", "--json"
@@ -444,7 +461,8 @@ def run_project(inst, project):
                 cwd=td,
                 **stdinarg
             ).decode())
-        project.current = RunningProject.parse_graph(project, rev, graph)
+        project.current = RunningProject.parse_graph(project, rev,
+                                                     graph, rolling_ids)
 
         @contextlib.contextmanager
         def _current_symlink():

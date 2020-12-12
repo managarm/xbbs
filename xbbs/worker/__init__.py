@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 import gevent.monkey; gevent.monkey.patch_all() # noqa isort:skip
+import json
 import os
 import os.path as path
 import shutil
@@ -138,6 +139,12 @@ def run_job(inst, sock, job, logfd):
                         XBBS_JOB=job.job)
 
         runcmd(["xbstrap", "init", source_dir], cwd=build_dir)
+        with open(path.join(source_dir, "bootstrap-commits.yml"), "w") as rf:
+            json.dump({
+                "commits": {
+                    x: {"rolling_id": y} for x, y in job.rolling_ids.items()
+                }
+            }, rf)
         with open(siteyaml_file, "w") as siteyml:
             siteyml.write('{"pkg_management":{"format":"xbps"}}\n')
         if job.xbps_keys:
