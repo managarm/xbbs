@@ -32,12 +32,18 @@ import xbbs.util as xutils
 
 
 def check_call_logged(cmd, **kwargs):
-    log.info("running command {} (params {})", cmd, kwargs)
+    _kwargs = kwargs.copy()
+    if "input" in _kwargs:
+        del _kwargs["input"]
+    log.info("running command {} (params {})", cmd, _kwargs)
     return subprocess.check_call(cmd, **kwargs)
 
 
 def check_output_logged(cmd, **kwargs):
-    log.info("running command {} (params {})", cmd, kwargs)
+    _kwargs = kwargs.copy()
+    if "input" in _kwargs:
+        del _kwargs["input"]
+    log.info("running command {} (params {})", cmd, _kwargs)
     return subprocess.check_output(cmd, **kwargs)
 
 
