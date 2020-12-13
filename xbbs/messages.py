@@ -11,13 +11,15 @@ class JobStatus(Enum):
     WAITING = (1, "Waiting", "running")
     RUNNING = (2, "Scheduled", "running")  # kinda dumb
     WAITING_FOR_DONE = (3, "Finishing up", "running")
-    FAILED = (4, "Failed", "failed")
-    SUCCESS = (5, "Success", "success")
+    FAILED = (4, "Failed", "failed", "failed")
+    SUCCESS = (5, "Success", "success", "are successful")
 
     # special values
-    PREREQUISITE_FAILED = (100, "Prerequisite failed", "failed")
+    PREREQUISITE_FAILED = (100, "Prerequisite failed", "failed",
+                           "have failed prerequisites")
     UP_TO_DATE = (101, "Up to date", "success")
-    IGNORED_FAILURE = (102, "Ignored failure", "failed")
+    IGNORED_FAILURE = (102, "Ignored failure", "failed",
+                       "have failed silently")
 
     @property
     def pretty(self):
@@ -43,6 +45,13 @@ class JobStatus(Enum):
             JobStatus.IGNORED_FAILURE,
             JobStatus.UP_TO_DATE
         ]
+
+    @property
+    def predicative(self):
+        if len(self.value) > 3 and self.value[3]:
+            return self.value[3]
+        else:
+            return f"are {self.pretty.lower()}"
 
 
 class BaseMessage:
