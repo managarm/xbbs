@@ -51,6 +51,7 @@ def load_build(status, proj, ts):
     except FileNotFoundError:
         build = {
             "running": True,
+            "jobs": {}
         }
     failures = 0
     for job in build["jobs"].values():
