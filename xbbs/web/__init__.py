@@ -220,7 +220,8 @@ def job_view(proj, ts):
                            build=build_info,
                            grouped_jobs=grouped_jobs,
                            ts=ts,
-                           project=proj
+                           project=proj,
+                           job_count=sum(len(x) for x in grouped_jobs.values())
                            )
 
 

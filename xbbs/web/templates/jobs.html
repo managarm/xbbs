@@ -83,11 +83,20 @@
 	<a href="{{ url_for("show_log_list", proj=project, ts=ts) }}">
 		[all logs]
 	</a>
+	<h4>Build summary</h4>
+	{{ job_count }} jobs total<br>
+{%- for k, v in grouped_jobs.items() if v %}
+	<a href="#jobset_{{ k.name.lower() }}">
+		{{ v|length }} jobs {{ k.predicative }}
+	</a><br>
+{%- endfor %}
 {%- endblock %}
 {%- block col2 %}
 	<table class="color-rows fullwidth onethree-cols">
 {%- for k, v in grouped_jobs.items() if v %}
-		<tr><th colspan="2">{{ k.pretty }}</th></tr>
+		<tr><th id="jobset_{{ k.name.lower() }}" colspan="2">
+			{{ k.pretty }}
+		</th></tr>
 		{{ display_set(v) }}
 {%- endfor %}
 	</table>
