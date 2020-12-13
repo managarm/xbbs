@@ -193,6 +193,8 @@ def job_view(proj, ts):
 
     grouped_jobs = collections.OrderedDict()
     grouped_jobs[msgs.JobStatus.FAILED] = collections.OrderedDict()
+    grouped_jobs[msgs.JobStatus.PREREQUISITE_FAILED] = \
+        collections.OrderedDict()
     grouped_jobs[msgs.JobStatus.RUNNING] = collections.OrderedDict()
     for x in reversed(msgs.JobStatus):
         if x in grouped_jobs:
