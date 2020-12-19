@@ -1,4 +1,4 @@
-command_endpoint = "tcp://127.0.0.1:16000"
+command_endpoint = "ipc:///home/arsen/xbci/site-local/xbbs-cmd-socket"
 # Addresses can be dictionaries consisting of the bind and connect address: the
 # bind address is the local address that the coordinator will bind it's end of
 # the pipeline to. connect is the endpoint that will be passed to remote
