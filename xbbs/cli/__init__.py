@@ -90,6 +90,30 @@ do_build.parser = subcommands.add_parser(
 do_build.parser.add_argument("project", help="project to fail")
 
 
+def do_schedule(conn, args):
+    code, res = send_request(conn, "schedule", msgs.ScheduleMessage(
+        project=args.project,
+        delay=args.delay
+    ).pack())
+    if code == 204:
+        return
+    res = msgpack.loads(res)
+    print(f"coordinator responded with {code} {res}", file=sys.stderr)
+    exit(1)
+
+
+do_schedule.parser = subcommands.add_parser(
+    "schedule",
+    help="start a project build after some seconds"
+)
+do_schedule.parser.add_argument("project", help="project to build")
+do_schedule.parser.add_argument(
+    "delay",
+    help="delay, in seconds, to sleep",
+    type=float
+)
+
+
 def main():
     XBBS_CFG_DIR = os.getenv("XBBS_CFG_DIR", "/etc/xbbs")
     with open(path.join(XBBS_CFG_DIR, "coordinator.toml"), "r") as fcfg:
@@ -106,6 +130,8 @@ def main():
         subcommand = do_build
     elif parsed.command == "fail":
         subcommand = do_fail
+    elif parsed.command == "schedule":
+        subcommand = do_schedule
     else:
         raise ValueError(f"unexpected command {parsed.command}")
 
