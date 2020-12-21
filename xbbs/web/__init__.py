@@ -45,6 +45,8 @@ def load_build(status, proj, ts):
     try:
         with open(path.join(base_dir, "coordinator")) as f:
             build = json.load(f)
+        if "state" in build:
+            build.update(state=msgs.BuildState[build["state"]])
     except json.JSONDecodeError:
         # this is a corrupted build, ignore it
         raise NotFound()

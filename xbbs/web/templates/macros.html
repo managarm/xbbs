@@ -12,17 +12,17 @@
 {%- endmacro %}
 
 {%- macro build_status(build) %}
-{%- if build.success %}
+{%- if not build.running and not build.finished %}
+	<div class="failed">Build never finished... (crash?)</div>
+{%- elif "state" in(build) and not build.state.terminating %}
+	<div class="running">{{ build.state.pretty }}</div>
+{%- elif build.success %}
 	<div class="success">Build successful
 	in {{ build.run_time|humanizedelta }}
 {%- if build.failures %}
 	({{ build.failures }} jobs failed)
 {%- endif %}
 	</div>
-{%- elif build.running %}
-	<div class="running">Build running...</div>
-{%- elif not build.finished %}
-	<div class="running">Build never finished... (crash?)</div>
 {%- else %}
 	<div class="failed">Build failed
 	in {{ build.run_time|humanizedelta }}</div>

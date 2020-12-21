@@ -55,17 +55,23 @@ class JobStatus(Enum):
 
 
 class BuildState(Enum):
-    SCHEDULED = (0, "Waiting to start")
-    FETCH = (1, "Fetching")
-    SETUP = (2, "Setting up")
-    CALCULATING = (3, "Calculating graph")
-    SETUP_REPOS = (4, "Setting up repositories")
-    RUNNING = (5, "Running")
+    SCHEDULED = (0, "Waiting to start...")
+    FETCH = (1, "Fetching...")
+    SETUP = (2, "Setting up...")
+    CALCULATING = (3, "Calculating graph...")
+    SETUP_REPOS = (4, "Setting up repositories...")
+    RUNNING = (5, "Running...")
     DONE = (6, "Done")
 
     @property
     def pretty(self):
         return self.value[1]
+
+    @property
+    def terminating(self):
+        return self in [
+            BuildState.DONE
+        ]
 
 
 class BaseMessage:
