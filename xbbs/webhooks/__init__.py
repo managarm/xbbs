@@ -10,6 +10,7 @@ import msgpack
 import toml
 import valideer as V
 import zmq.green as zmq
+import xbbs.messages as msgs
 from flask import Flask, request
 from werkzeug.exceptions import (BadRequest, InternalServerError,
                                  ServiceUnavailable, Unauthorized)
@@ -74,7 +75,10 @@ def github():
     with zctx.socket(zmq.REQ) as conn:
         conn.set(zmq.LINGER, 0)
         conn.connect(coordinator)
-        conn.send_multipart([b"build", msgpack.dumps(project)])
+        conn.send_multipart([b"schedule", msgs.ScheduleMessage(
+            project=project,
+            delay=600  # TODO: configurable
+        ).pack()])
         if not conn.poll(cmd_timeout):
             raise ServiceUnavailable()
         (code, res) = conn.recv_multipart()
