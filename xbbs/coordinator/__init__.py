@@ -20,6 +20,7 @@ from hashlib import blake2b
 import attr
 import gevent
 import gevent.event
+import gevent.time
 import msgpack as msgpk
 import toml
 import valideer as V
@@ -115,27 +116,10 @@ class Project:
     classes = attr.ib()
     packages = attr.ib()
     tools = attr.ib()
+    base = attr.ib()
     incremental = attr.ib(default=False)
     fingerprint = attr.ib(default=None)
     current = attr.ib(default=None)
-
-    # TODO(arsen): these should probably be moved to RunningProject
-    def base(self, xbbs):
-        return path.join(xbbs.project_base, self.name)
-
-    def log(self, inst, job=None):
-        tsdir = path.join(self.base(inst),
-                          self.current.ts.strftime(xutils.TIMESTAMP_FORMAT))
-        os.makedirs(tsdir, exist_ok=True)
-        if not job:
-            return tsdir
-        return path.join(tsdir, f"{job}.log")
-
-    def info(self, inst, job):
-        tsdir = path.join(self.base(inst),
-                          self.current.ts.strftime(xutils.TIMESTAMP_FORMAT))
-        os.makedirs(tsdir, exist_ok=True)
-        return path.join(tsdir, f"{job}.info")
 
 
 @attr.s
@@ -205,10 +189,13 @@ class Job:
 
 
 @attr.s
-class RunningProject:
+class Build:
     name = attr.ib()
     repository = attr.ib()
-    revision = attr.ib()
+    build_directory = attr.ib()
+
+    revision = attr.ib(default=None)
+    state = attr.ib(default=msgs.BuildState.SCHEDULED)
     jobs = attr.ib(factory=dict)
     success = attr.ib(default=True)
     ts = attr.ib(factory=datetime.datetime.now)
@@ -221,14 +208,62 @@ class RunningProject:
     artifact_received = attr.ib(factory=gevent.event.Event)
 
     @classmethod
-    def parse_graph(cls, project, revision, graph, rolling_ids):
+    def create(cls, inst, project):
+        inst = cls(
+            name=project.name,
+            repository=project.git,
+            # TODO(arsen): this should be stored in project as base_directory
+            build_directory=path.join(inst.project_base, project.name)
+        )
+        inst.build_directory = path.join(
+            inst.build_directory, inst.ts.strftime(xutils.TIMESTAMP_FORMAT)
+        )
+        os.makedirs(inst.build_directory)
+        inst.store_status()
+        return inst
+
+    def update_state(self, state):
+        self.state = state
+        self.store_status()
+
+    def log(self, job=None):
+        return path.join(self.build_directory, f"{job}.log")
+
+    def info(self, job):
+        return path.join(self.build_directory, f"{job}.info")
+
+    def store_status(self, *, success=None, length=None):
+        coordfile = path.join(self.build_directory, "coordinator")
+        job_info = {}
+        for name, job in self.jobs.items():
+            current = {
+                "status": job.status.name,
+                "deps": [attr.asdict(x) for x in job.deps],
+                "products": [attr.asdict(x) for x in job.products]
+            }
+            job_info[name] = current
+            if job.exit_code is not None:
+                current.update(exit_code=job.exit_code)
+            if job.run_time is not None:
+                current.update(run_time=job.run_time)
+        # TODO(arsen): store more useful graph
+        state = {
+            "state": self.state.name,
+            "jobs": job_info
+        }
+        if success is not None:
+            state.update(success=success, run_time=length)
+        with open(coordfile, "w") as csf:
+            json.dump(state, csf, indent=4, cls=ArtifactEncoder)
+
+    def set_graph(self, project, revision, graph, rolling_ids):
         graph = GRAPH_VALIDATOR.validate(graph)
 
-        proj = cls(project.name, project.git, revision)
-        proj.rolling_ids = rolling_ids
-        tools = proj.tool_set
-        pkgs = proj.pkg_set
-        files = proj.file_set
+        self.revision = revision
+        self.rolling_ids = rolling_ids
+        tools = self.tool_set
+        pkgs = self.pkg_set
+        files = self.file_set
         for job, info in graph.items():
             # TODO(arsen): circ dep detection (low prio: handled in xbstrap)
             job_val = Job(unstable=info["unstable"])
@@ -265,9 +300,9 @@ class RunningProject:
                     prod.received = True
                     prod.failed = False
 
-            proj.jobs[job] = job_val
+            self.jobs[job] = job_val
 
-        return proj
+        self.store_status()
 
 
 class ArtifactEncoder(json.JSONEncoder):
@@ -277,36 +312,12 @@ class ArtifactEncoder(json.JSONEncoder):
         return super().default(obj)
 
 
-def store_jobs(inst, projinfo, *, success=None, length=None):
-    coordfile = path.join(projinfo.log(inst), "coordinator")
-    job_info = {}
-    for name, job in projinfo.current.jobs.items():
-        current = {
-            "status": job.status.name,
-            "deps": [attr.asdict(x) for x in job.deps],
-            "products": [attr.asdict(x) for x in job.products]
-        }
-        job_info[name] = current
-        if job.exit_code is not None:
-            current.update(exit_code=job.exit_code)
-        if job.run_time is not None:
-            current.update(run_time=job.run_time)
-    # TODO(arsen): store more useful graph
-    state = {
-        "jobs": job_info
-    }
-    if success is not None:
-        state.update(success=success, run_time=length)
-    with open(coordfile, "w") as csf:
-        json.dump(state, csf, indent=4, cls=ArtifactEncoder)
-
-
 def solve_project(inst, projinfo):
-    project = projinfo.current
+    build = projinfo.current
     while True:
-        project.artifact_received.clear()
+        build.artifact_received.clear()
         some_waiting = False
-        for name, job in project.jobs.items():
+        for name, job in build.jobs.items():
             if all([x.received for x in job.products]) and \
                job.status is msgs.JobStatus.RUNNING:
                 job.status = msgs.JobStatus.WAITING_FOR_DONE
@@ -326,10 +337,10 @@ def solve_project(inst, projinfo):
                     failed = True
 
             if failed:
-                job.fail(project.jobs)
+                job.fail(build.jobs)
                 # This failure means that our artifacts might have changed -
                 # trigger a rescan
-                project.artifact_received.set()
+                build.artifact_received.set()
                 continue
 
             if not satisfied:
@@ -347,7 +358,7 @@ def solve_project(inst, projinfo):
                           if x.kind is Artifact.Kind.FILE]
             keys = {}
             if projinfo.fingerprint:
-                pubkey = path.join(projinfo.base(inst),
+                pubkey = path.join(projinfo.base,
                                    f"{projinfo.fingerprint}.plist")
                 # XXX: this is not cooperative, and should be okay because
                 # it's a small amount of data
@@ -356,10 +367,10 @@ def solve_project(inst, projinfo):
 
             job.status = msgs.JobStatus.RUNNING
             jobreq = msgs.JobMessage(
-                project=project.name,
+                project=build.name,
                 job=name,
-                repository=project.repository,
-                revision=project.revision,
+                repository=build.repository,
+                revision=build.revision,
                 output=inst.intake_address,
                 build_root=inst.build_root,
                 needed_tools=needed_tools,
@@ -369,23 +380,23 @@ def solve_project(inst, projinfo):
                 prod_files=prod_files,
                 tool_repo=projinfo.tools,
                 pkg_repo=projinfo.packages,
-                rolling_ids=project.rolling_ids,
+                rolling_ids=build.rolling_ids,
                 xbps_keys=keys
             )
             log.debug("sending job request {}", jobreq)
             inst.pipeline.send(jobreq.pack())
 
-        store_jobs(inst, projinfo)
+        build.store_status()
 
         # TODO(arsen): handle the edge case in which workers are dead
         if not some_waiting:
-            assert all(x.received for x in project.tool_set.values())
-            assert all(x.received for x in project.file_set.values())
-            assert all(x.received for x in project.pkg_set.values())
-            assert all(x.status.terminating for x in project.jobs.values())
-            return all(x.status.successful for x in project.jobs.values())
+            assert all(x.received for x in build.tool_set.values())
+            assert all(x.received for x in build.file_set.values())
+            assert all(x.received for x in build.pkg_set.values())
+            assert all(x.status.terminating for x in build.jobs.values())
+            return all(x.status.successful for x in build.jobs.values())
 
-        project.artifact_received.wait()
+        build.artifact_received.wait()
 
 # TODO(arsen): a better log collection system. It should include the output of
 # git and xbstrap, too
@@ -399,7 +410,7 @@ def _load_version_information(inst, project):
     pkgs = {}
     tools = {}
     # TODO: multiarch
-    rdf = path.join(project.base(inst), "rolling/package_repo/x86_64-repodata")
+    rdf = path.join(project.base, "rolling/package_repo/x86_64-repodata")
     try:
         rd = xutils.read_xbps_repodata(rdf)
         for pkg in rd:
@@ -413,77 +424,87 @@ def _load_version_information(inst, project):
     return {"pkgs": pkgs, "tools": tools}
 
 
-def run_project(inst, project):
-    start = None
-    try:
-        projdir = path.join(project.base(inst), 'repo')
-        os.makedirs(projdir, exist_ok=True)
-        if not path.isdir(path.join(projdir, ".git")):
-            check_call_logged(["git", "init"], cwd=projdir)
-            check_call_logged(["git", "remote", "add", "origin", project.git],
+def run_project(inst, project, delay):
+    @contextlib.contextmanager
+    def _current_symlink():
+        # XXX: if this fails two coordinators are running, perhaps that
+        # should be prevented somehow (lock on start)?
+        current_file = path.join(project.base, "current")
+        datedir = build.build_directory
+        try:
+            yield os.symlink(datedir, current_file)
+        finally:
+            os.unlink(current_file)
+
+    start = time.monotonic()
+    success = False
+    length = 0
+    build = project.current
+    with xutils.lock_file(build.build_directory, "coordinator"), \
+         _current_symlink():
+        gevent.time.sleep(delay)
+        try:
+            build.update_state(msgs.BuildState.FETCH)
+            projdir = path.join(project.base, 'repo')
+            os.makedirs(projdir, exist_ok=True)
+            if not path.isdir(path.join(projdir, ".git")):
+                check_call_logged(["git", "init"], cwd=projdir)
+                check_call_logged(["git", "remote", "add", "origin",
+                                   project.git], cwd=projdir)
+            check_call_logged(["git", "fetch", "origin"], cwd=projdir)
+            # TODO(arsen): support non-master builds
+            check_call_logged(["git", "checkout", "--detach", "origin/master"],
                               cwd=projdir)
-        check_call_logged(["git", "fetch", "origin"], cwd=projdir)
-        # TODO(arsen): support non-master builds
-        check_call_logged(["git", "checkout", "--detach", "origin/master"],
-                          cwd=projdir)
-        rev = check_output_logged(["git", "rev-parse", "HEAD"],
-                                  cwd=projdir).decode().strip()
-        with tempfile.TemporaryDirectory(dir=inst.tmp_dir) as td:
-            # XXX: these could probably be improved to not load the whole JSONs
-            #      into memory
-            xutils.run_hook(log, projdir, td, "pregraph")
-            check_call_logged(["xbstrap", "init", projdir], cwd=td)
+            rev = check_output_logged(["git", "rev-parse", "HEAD"],
+                                      cwd=projdir).decode().strip()
+            build.update_state(msgs.BuildState.SETUP)
+            with tempfile.TemporaryDirectory(dir=inst.tmp_dir) as td:
+                # XXX: these could probably be improved to not load the whole
+                #      JSONs into memory
+                xutils.run_hook(log, projdir, td, "pregraph")
+                check_call_logged(["xbstrap", "init", projdir], cwd=td)
 
-            check_call_logged(["xbstrap", "rolling-versions", "fetch"], cwd=td)
-            rolling_ids = json.loads(check_output_logged([
-                "xbstrap", "rolling-versions", "determine", "--json"
-            ], cwd=td).decode())
-            with open(path.join(projdir, "bootstrap-commits.yml"), "w") as rf:
-                json.dump({
-                    "commits": {
-                        x: {"rolling_id": y} for x, y in rolling_ids.items()
-                    }
-                }, rf)
+                check_call_logged(["xbstrap", "rolling-versions", "fetch"],
+                                  cwd=td)
+                rolling_ids = json.loads(check_output_logged([
+                    "xbstrap", "rolling-versions", "determine", "--json"
+                ], cwd=td).decode())
+                with open(path.join(projdir, "bootstrap-commits.yml"), "w") \
+                        as rf:
+                    json.dump({
+                        "commits": {
+                            x: {"rolling_id": y}
+                            for x, y in rolling_ids.items()
+                        }
+                    }, rf)
 
-            xbargs = [
-                "xbstrap-pipeline", "compute-graph",
-                "--artifacts", "--json"
-            ]
-            stdinarg = {}
-            if project.incremental:
-                vi = _load_version_information(inst, project)
-                stdinarg = dict(input=json.dumps(vi).encode())
-                xbargs.extend(["--version-file", "fd:0"])
-                log.debug("verinfo collected: {}", vi)
-            # XXX: this code may need some cleaning, for readability sake.
-            graph = json.loads(check_output_logged(
-                xbargs,
-                cwd=td,
-                **stdinarg
-            ).decode())
-        project.current = RunningProject.parse_graph(project, rev,
-                                                     graph, rolling_ids)
+                build.update_state(msgs.BuildState.CALCULATING)
+                xbargs = [
+                    "xbstrap-pipeline", "compute-graph",
+                    "--artifacts", "--json"
+                ]
+                stdinarg = {}
+                if project.incremental:
+                    vi = _load_version_information(inst, project)
+                    stdinarg = dict(input=json.dumps(vi).encode())
+                    xbargs.extend(["--version-file", "fd:0"])
+                    log.debug("verinfo collected: {}", vi)
+                # XXX: this code may need some cleaning, for readability sake.
+                graph = json.loads(check_output_logged(
+                    xbargs,
+                    cwd=td,
+                    **stdinarg
+                ).decode())
+            build.set_graph(project, rev, graph, rolling_ids)
 
-        @contextlib.contextmanager
-        def _current_symlink():
-            # XXX: if this fails two coordinators are running, perhaps that
-            # should be prevented somehow (lock on start)?
-            current_file = path.join(project.base(inst), "current")
-            datedir = project.current.ts.strftime(xutils.TIMESTAMP_FORMAT)
-            try:
-                yield os.symlink(datedir, current_file)
-            finally:
-                os.unlink(current_file)
-
-        # XXX: keep last successful and currently running directory as links?
-        with xutils.lock_file(project.log(inst), "coordinator"), \
-             _current_symlink():
-            package_repo = path.join(project.log(inst), "package_repo")
-            roll_repo = path.join(project.base(inst), "rolling/package_repo")
+            # XXX: keep last success and currently running directory as links?
+            package_repo = path.join(build.build_directory, "package_repo")
+            roll_repo = path.join(project.base, "rolling/package_repo")
             if path.exists(roll_repo) and project.incremental:
+                build.update_state(msgs.BuildState.SETUP_REPOS)
                 log.info("populating build repository with up-to-date pkgs")
                 os.makedirs(package_repo, exist_ok=True)
-                for x in project.current.pkg_set.values():
+                for x in build.pkg_set.values():
                     if not x.received:
                         continue
                     fname = f"{x.name}-{x.version}.x86_64.xbps"
@@ -494,21 +515,19 @@ def run_project(inst, project):
                     check_call_logged(["xbps-rindex", "-fa", target_file])
                     maybe_sign_artifact(inst, target_file, project)
 
-            start = time.monotonic()
+            build.update_state(msgs.BuildState.RUNNING)
             success = solve_project(inst, project)
+        except Exception:
+            log.exception("build failed due to an exception")
+        finally:
+            project.current = None
+            # Update directly here to not do two writes to disk
+            build.state = msgs.BuildState.DONE
+            build.store_status(success=success, length=length)
+
             length = time.monotonic() - start
             log.info("job {} done; success? {} in {}s",
                      project.name, success, length)
-            store_jobs(inst, project, success=success, length=length)
-    except Exception:
-        log.exception("build failed due to an exception")
-        length = 0
-        if start is not None:
-            length = time.monotonic() - start
-        if isinstance(project.current, RunningProject):
-            store_jobs(inst, project, success=False, length=length)
-    finally:
-        project.current = None
 
 
 def cmd_build(inst, name):
@@ -519,9 +538,9 @@ def cmd_build(inst, name):
     proj = inst.projects[name]
     if proj.current:
         return 409, msgpk.dumps("project already running")
-    # XXX: is this a horrible hack? naaaaa
-    proj.current = True
-    pg = gevent.spawn(run_project, inst, proj)
+
+    proj.current = Build.create(inst, proj)
+    pg = gevent.spawn(run_project, inst, proj, 0)
     pg.link(lambda g, i=inst: inst.project_greenlets.remove(g))
     inst.project_greenlets.append(pg)
 
@@ -556,6 +575,24 @@ def cmd_status(inst, _):
         load=os.getloadavg(),
         pid=os.getpid()
     ).pack()
+
+
+def cmd_schedule(inst, arg):
+    "handle starting a new build on a project by name with a time delay"
+    msg = msgs.ScheduleMessage.unpack(arg)
+    name = msg.project
+    delay = msg.delay
+
+    if name not in inst.projects:
+        return 404, msgpk.dumps("unknown project")
+    proj = inst.projects[name]
+    if proj.current:
+        return 409, msgpk.dumps("project already running")
+
+    proj.current = Build.create(inst, proj)
+    pg = gevent.spawn(run_project, inst, proj, delay)
+    pg.link(lambda g, i=inst: inst.project_greenlets.remove(g))
+    inst.project_greenlets.append(pg)
 
 
 def command_loop(inst, sock_cmd):
@@ -598,6 +635,7 @@ def command_loop(inst, sock_cmd):
 
 
 command_loop.cmds = {
+    "schedule": cmd_schedule,
     "build": cmd_build,
     "fail": cmd_fail,
     "status": cmd_status
@@ -626,7 +664,7 @@ cmd_chunk.table = {}
 def maybe_sign_artifact(inst, artifact, project):
     if not project.fingerprint:
         return
-    base = project.base(inst)
+    base = project.base
     privkey = path.join(base, f"{project.fingerprint}.rsa")
     pubkey = path.join(base, f"{project.fingerprint}.plist")
     # XXX: this is not cooperative, and should be okay because
@@ -668,10 +706,11 @@ def cmd_artifact(inst, value):
             assert message.artifact_type == "package"
             aset = run.pkg_set
 
-        repo = path.abspath(path.join(proj.log(inst),
+        repo = path.abspath(path.join(proj.current.build_directory,
                             f"{message.artifact_type}_repo"))
-        repo_roll = path.abspath(path.join(proj.base(inst), "rolling",
-                                 f"{message.artifact_type}_repo"))
+        repo_roll = path.abspath(path.join(
+            proj.base, f"rolling/{message.artifact_type}_repo"
+        ))
         os.makedirs(repo, exist_ok=True)
         os.makedirs(repo_roll, exist_ok=True)
 
@@ -743,7 +782,7 @@ def cmd_log(inst, value):
 
     # XXX: this is not cooperative, and should be okay because
     # it's a small amount of data
-    with open(proj.log(inst, message.job), mode="a") as logfile:
+    with open(proj.current.log(message.job), mode="a") as logfile:
         logfile.write(message.line)
 
 
@@ -765,7 +804,7 @@ def cmd_job(inst, value):
     job.exit_code = message.exit_code
     job.run_time = message.run_time
     proj.current.artifact_received.set()
-    with open(proj.info(inst, message.job), "w") as infofile:
+    with open(proj.current.info(message.job), "w") as infofile:
         json.dump(message._dictvalue, infofile, indent=4)
 
 
@@ -793,7 +832,7 @@ intake_loop.cmds = {
 def dump_projects(xbbs):
     running = 0
     for name, proj in xbbs.projects.items():
-        if not isinstance(proj.current, RunningProject):
+        if not isinstance(proj.current, Build):
             continue
         running += 1
         log.info("project {} running: {}", name, proj.current)
@@ -812,7 +851,12 @@ def main():
     inst = Xbbs.create(cfg)
 
     for name, elem in cfg["projects"].items():
-        inst.projects[name] = Project(name, **elem)
+        project = Project(
+                name, **elem,
+                base=path.join(inst.project_base, name)
+        )
+        inst.projects[name] = project
+        os.makedirs(project.base, exist_ok=True)
         log.debug("got project {}", inst.projects[name])
 
     with inst.zmq.socket(zmq.REP) as sock_cmd, \

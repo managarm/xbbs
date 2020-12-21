@@ -54,6 +54,20 @@ class JobStatus(Enum):
             return f"are {self.pretty.lower()}"
 
 
+class BuildState(Enum):
+    SCHEDULED = (0, "Waiting to start")
+    FETCH = (1, "Fetching")
+    SETUP = (2, "Setting up")
+    CALCULATING = (3, "Calculating graph")
+    SETUP_REPOS = (4, "Setting up repositories")
+    RUNNING = (5, "Running")
+    DONE = (6, "Done")
+
+    @property
+    def pretty(self):
+        return self.value[1]
+
+
 class BaseMessage:
     _filter = None
 
@@ -229,6 +243,16 @@ class StatusMessage(BaseMessage):
             "classes": ["string"],
             "running": "boolean",
         })
+    })
+
+
+@attr.s
+class ScheduleMessage(BaseMessage):
+    project = attr.ib()
+    delay = attr.ib()
+    _validator = V.parse({
+        "project": "string",
+        "delay": "number"
     })
 
 
