@@ -203,7 +203,7 @@ class Build:
     tool_set = attr.ib(factory=dict)
     file_set = attr.ib(factory=dict)
     pkg_set = attr.ib(factory=dict)
-    rolling_ids = attr.ib(factory=dict)
+    commits_object = attr.ib(factory=dict)
 
     artifact_received = attr.ib(factory=gevent.event.Event)
 
@@ -256,11 +256,11 @@ class Build:
         with open(coordfile, "w") as csf:
             json.dump(state, csf, indent=4, cls=ArtifactEncoder)
 
-    def set_graph(self, project, revision, graph, rolling_ids):
+    def set_graph(self, project, revision, graph, commits_object):
         graph = GRAPH_VALIDATOR.validate(graph)
 
         self.revision = revision
-        self.rolling_ids = rolling_ids
+        self.commits_object = commits_object
         tools = self.tool_set
         pkgs = self.pkg_set
         files = self.file_set
@@ -380,7 +380,7 @@ def solve_project(inst, projinfo):
                 prod_files=prod_files,
                 tool_repo=projinfo.tools,
                 pkg_repo=projinfo.packages,
-                rolling_ids=build.rolling_ids,
+                commits_object=build.commits_object,
                 xbps_keys=keys
             )
             log.debug("sending job request {}", jobreq)
@@ -466,16 +466,31 @@ def run_project(inst, project, delay):
 
                 check_call_logged(["xbstrap", "rolling-versions", "fetch"],
                                   cwd=td)
+                check_call_logged(["xbstrap", "variable-commits",
+                                   "fetch", "-c"], cwd=td)
                 rolling_ids = json.loads(check_output_logged([
                     "xbstrap", "rolling-versions", "determine", "--json"
                 ], cwd=td).decode())
+                variable_commits = json.loads(check_output_logged([
+                    "xbstrap", "variable-commits", "determine", "--json"
+                ], cwd=td).decode())
+
+                commits_object = {}
+
+                for k, v in rolling_ids.items():
+                    if k not in commits_object:
+                        commits_object[k] = {}
+                    commits_object[k]["rolling_id"] = v
+
+                for k, v in variable_commits.items():
+                    if k not in commits_object:
+                        commits_object[k] = {}
+                    commits_object[k]["fixed_commit"] = v
+
                 with open(path.join(projdir, "bootstrap-commits.yml"), "w") \
                         as rf:
                     json.dump({
-                        "commits": {
-                            x: {"rolling_id": y}
-                            for x, y in rolling_ids.items()
-                        }
+                        "commits": commits_object
                     }, rf)
 
                 build.update_state(msgs.BuildState.CALCULATING)
@@ -495,7 +510,7 @@ def run_project(inst, project, delay):
                     cwd=td,
                     **stdinarg
                 ).decode())
-            build.set_graph(project, rev, graph, rolling_ids)
+            build.set_graph(project, rev, graph, commits_object)
 
             # XXX: keep last success and currently running directory as links?
             package_repo = path.join(build.build_directory, "package_repo")

@@ -161,7 +161,10 @@ class JobMessage(BaseMessage):
         "prod_files": ["string"],
         "tool_repo": "string",
         "pkg_repo": "string",
-        "rolling_ids": PKG_TOOL_VALIDATOR,
+        "commits_object": V.Mapping("string", {
+            "?rolling_id": "string",
+            "?fixed_commit": "string"
+        }),
         "?xbps_keys": V.Mapping(
             re.compile(r"^([a-zA-Z0-9]{2}:){15}[a-zA-Z0-9]{2}$"), bytes
         )

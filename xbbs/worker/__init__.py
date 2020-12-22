@@ -141,9 +141,7 @@ def run_job(inst, sock, job, logfd):
         runcmd(["xbstrap", "init", source_dir], cwd=build_dir)
         with open(path.join(source_dir, "bootstrap-commits.yml"), "w") as rf:
             json.dump({
-                "commits": {
-                    x: {"rolling_id": y} for x, y in job.rolling_ids.items()
-                }
+                "commits": job.commits_object
             }, rf)
         with open(siteyaml_file, "w") as siteyml:
             siteyml.write('{"pkg_management":{"format":"xbps"}}\n')
