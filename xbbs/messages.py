@@ -144,7 +144,7 @@ class JobMessage(BaseMessage):
     prod_files = attr.ib()
     tool_repo = attr.ib()
     pkg_repo = attr.ib()
-    rolling_ids = attr.ib()
+    commits_object = attr.ib()
     # XXX: maybe it's worth doing something else
     xbps_keys = attr.ib(default=None, repr=False)
     _validator = V.parse({
