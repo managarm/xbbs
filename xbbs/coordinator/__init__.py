@@ -533,12 +533,12 @@ def run_project(inst, project, delay):
         except Exception:
             log.exception("build failed due to an exception")
         finally:
+            length = time.monotonic() - start
             project.current = None
             # Update directly here to not do two writes to disk
             build.state = msgs.BuildState.DONE
             build.store_status(success=success, length=length)
 
-            length = time.monotonic() - start
             log.info("job {} done; success? {} in {}s",
                      project.name, success, length)
 
