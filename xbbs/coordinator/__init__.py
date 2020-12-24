@@ -441,16 +441,14 @@ def run_project(inst, project, delay):
     length = 0
     build = project.current
     with xutils.lock_file(build.build_directory, "coordinator"), \
+         tempfile.TemporaryDirectory(dir=inst.tmp_dir) as projdir, \
          _current_symlink():
         gevent.time.sleep(delay)
         try:
             build.update_state(msgs.BuildState.FETCH)
-            projdir = path.join(project.base, 'repo')
-            os.makedirs(projdir, exist_ok=True)
-            if not path.isdir(path.join(projdir, ".git")):
-                check_call_logged(["git", "init"], cwd=projdir)
-                check_call_logged(["git", "remote", "add", "origin",
-                                   project.git], cwd=projdir)
+            check_call_logged(["git", "init"], cwd=projdir)
+            check_call_logged(["git", "remote", "add", "origin",
+                               project.git], cwd=projdir)
             check_call_logged(["git", "fetch", "origin"], cwd=projdir)
             # TODO(arsen): support non-master builds
             check_call_logged(["git", "checkout", "--detach", "origin/master"],
