@@ -23,6 +23,8 @@
 	({{ build.failures }} jobs failed)
 {%- endif %}
 	</div>
+{%- elif build.running and not build.finished %}
+	<div class="running">Build running</div>
 {%- else %}
 	<div class="failed">Build failed
 	in {{ build.run_time|humanizedelta }}</div>
