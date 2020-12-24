@@ -1,0 +1,5 @@
+coordinator_endpoint = "ipc:///home/arsen/xbci/site-local/xbbs-cmd-socket"
+github_secret = "secret"
+
+[github]
+"ArsenArsen/testrepo" = "managarm"
