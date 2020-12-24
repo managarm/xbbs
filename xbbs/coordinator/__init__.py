@@ -120,6 +120,7 @@ class Project:
     incremental = attr.ib(default=False)
     fingerprint = attr.ib(default=None)
     current = attr.ib(default=None)
+    tool_repo_lock = attr.ib(factory=gevent.lock.RLock)
 
 
 @attr.s
@@ -406,11 +407,12 @@ def solve_project(inst, projinfo):
 # xterm-{256,}color does, since it is widely adopted and assumed.
 
 
-def _load_version_information(inst, project):
+def _load_version_information(project):
     pkgs = {}
     tools = {}
     # TODO: multiarch
     rdf = path.join(project.base, "rolling/package_repo/x86_64-repodata")
+    tool_repo = path.join(project.base, "rolling/tool_repo")
     try:
         rd = xutils.read_xbps_repodata(rdf)
         for pkg in rd:
@@ -418,6 +420,9 @@ def _load_version_information(inst, project):
     except FileNotFoundError as e:
         log.debug("no verinfo, cannot open repodata: {}", e)
         pass
+
+    with project.tool_repo_lock:
+        tools = load_tool_registry(tool_repo)
 
     # TODO: discover tool versions. for now, it is ignored by xbstrap and
     # always rebuilt anyways.
@@ -498,7 +503,7 @@ def run_project(inst, project, delay):
                 ]
                 stdinarg = {}
                 if project.incremental:
-                    vi = _load_version_information(inst, project)
+                    vi = _load_version_information(project)
                     stdinarg = dict(input=json.dumps(vi).encode())
                     xbargs.extend(["--version-file", "fd:0"])
                     log.debug("verinfo collected: {}", vi)
@@ -512,21 +517,35 @@ def run_project(inst, project, delay):
 
             # XXX: keep last success and currently running directory as links?
             package_repo = path.join(build.build_directory, "package_repo")
-            roll_repo = path.join(project.base, "rolling/package_repo")
-            if path.exists(roll_repo) and project.incremental:
+            tool_repo = path.join(build.build_directory, "tool_repo")
+
+            roll_base = path.join(project.base, "rolling")
+            rpkg_repo = path.join(roll_base, "package_repo")
+            rtool_repo = path.join(roll_base, "tool_repo")
+            if path.exists(roll_base) and project.incremental:
                 build.update_state(msgs.BuildState.SETUP_REPOS)
                 log.info("populating build repository with up-to-date pkgs")
-                os.makedirs(package_repo, exist_ok=True)
+                os.makedirs(package_repo)
+                os.makedirs(tool_repo)
                 for x in build.pkg_set.values():
                     if not x.received:
                         continue
                     fname = f"{x.name}-{x.version}.x86_64.xbps"
                     target_file = path.join(package_repo, fname)
                     # does the user deserve an error if they delete a package?
-                    shutil.copy2(path.join(roll_repo, fname),
+                    shutil.copy2(path.join(rpkg_repo, fname),
                                  target_file, follow_symlinks=False)
                     check_call_logged(["xbps-rindex", "-fa", target_file])
                     maybe_sign_artifact(inst, target_file, project)
+                for x in build.tool_set.values():
+                    if not x.received:
+                        continue
+                    fname = f"{x.name}.tar.gz"
+                    target_file = path.join(tool_repo, fname)
+                    tool_fname = path.join(rtool_repo, fname)
+                    shutil.copy2(tool_fname,
+                                 target_file, follow_symlinks=False)
+                    update_tool_registry(tool_fname, x)
 
             build.update_state(msgs.BuildState.RUNNING)
             success = solve_project(inst, project)
@@ -697,6 +716,41 @@ def maybe_sign_artifact(inst, artifact, project):
     # "{project.fingerprint}.plist"s key and signer
 
 
+def load_tool_registry(tool_repo):
+    versions = {}
+    try:
+        dbf = open(path.join(tool_repo, "tools.json"))
+        versions = json.load(dbf)
+    except FileNotFoundError:
+        pass
+    return versions
+
+
+def update_tool_registry(artifact_file, artifact, toolvers=None):
+    repo = path.dirname(artifact_file)
+    repodata = path.join(repo, "tools.json")
+    versions = {}
+    dbf = None
+    if not toolvers:
+        try:
+            with open(repodata) as dbf:
+                versions = json.load(dbf)
+        except FileNotFoundError:
+            pass
+        except Exception:
+            if dbf:
+                dbf.close()
+            raise
+    else:
+        versions = toolvers
+
+    versions[artifact.name] = artifact.version
+    with tempfile.NamedTemporaryFile(prefix=".", dir=repo, delete=False,
+                                     mode="w+") as f:
+        json.dump(versions, f, indent=4)
+        os.rename(f.name, repodata)
+
+
 def cmd_artifact(inst, value):
     "handle receiving an artifact"
     message = msgs.ArtifactMessage.unpack(value)
@@ -764,7 +818,25 @@ def cmd_artifact(inst, value):
                                   artifact)
                 maybe_sign_artifact(inst, artifact_file, proj)
                 maybe_sign_artifact(inst, artifact_roll, proj)
-            # TODO: rolling repo for tools
+            elif artifact.kind == Artifact.Kind.TOOL:
+                with proj.tool_repo_lock:
+                    toolvers = load_tool_registry(path.dirname(artifact_roll))
+                    if not path.exists(artifact_roll) or \
+                       toolvers.get(artifact.name, None) != artifact.version:
+                        shutil.copy2(artifact_file, artifact_roll)
+                        update_tool_registry(artifact_roll, artifact, toolvers)
+                    else:
+                        with open(artifact_file, "rb") as f:
+                            h1 = xutils.hash_file(f)
+                        with open(artifact_roll, "rb") as f:
+                            h2 = xutils.hash_file(f)
+                        if h1 != h2:
+                            log.error("{} hash changed, but version didn't!",
+                                      artifact)
+            elif artifact.kind == Artifact.Kind.FILE:
+                shutil.copy2(artifact_file, artifact_roll)
+            else:
+                assert not "New artifact kind?"
         except Exception as e:
             log.exception("artifact deposit failed", e)
             artifact.failed = True
