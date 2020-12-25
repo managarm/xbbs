@@ -435,7 +435,7 @@ def run_project(inst, project, delay):
         # XXX: if this fails two coordinators are running, perhaps that
         # should be prevented somehow (lock on start)?
         current_file = path.join(project.base, "current")
-        datedir = build.build_directory
+        datedir = path.basename(path.normpath(build.build_directory))
         try:
             yield os.symlink(datedir, current_file)
         finally:
