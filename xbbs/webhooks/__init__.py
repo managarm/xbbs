@@ -10,10 +10,11 @@ import msgpack
 import toml
 import valideer as V
 import zmq.green as zmq
-import xbbs.messages as msgs
 from flask import Flask, request
 from werkzeug.exceptions import (BadRequest, InternalServerError,
                                  ServiceUnavailable, Unauthorized)
+
+import xbbs.messages as msgs
 
 app = Flask(__name__)
 zctx = zmq.Context.instance()
