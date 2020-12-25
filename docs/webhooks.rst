@@ -7,6 +7,7 @@ Configuration is store in a file at ``${XBBS_CFG_DIR}/webhooks.toml`` and
 contains the following:
 
 .. code-block:: toml
+
     # Where the xbbs coordinator exposes the command socket
     coordinator_endpoint = "ipc:///tmp/xbbs-cmd-socket"
     # Secret given to GitHub for SHA256 HMAC
