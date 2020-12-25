@@ -14,5 +14,7 @@ xbbs consists of three modules:
   hardcoding absolute paths.
 - ``xbbs.web``: read only web frontend to the coordinator providing access to
   logs, repositories, and build history
+- ``xbbs.webhooks``: webhook adapter for starting builds. Supports
+  authenticated GitHub webhooks
 
 Additional documentation will be in ``docs/``.
