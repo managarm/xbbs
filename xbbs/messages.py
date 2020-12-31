@@ -256,12 +256,14 @@ class StatusMessage(BaseMessage):
 
 
 @attr.s
-class ScheduleMessage(BaseMessage):
+class BuildMessage(BaseMessage):
     project = attr.ib()
     delay = attr.ib()
+    incremental = attr.ib(default=None)
     _validator = V.parse({
         "project": "string",
-        "delay": "number"
+        "delay": "number",
+        "?incremental": V.Nullable("boolean")
     })
 
 

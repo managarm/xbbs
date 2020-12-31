@@ -76,9 +76,10 @@ def github():
     with zctx.socket(zmq.REQ) as conn:
         conn.set(zmq.LINGER, 0)
         conn.connect(coordinator)
-        conn.send_multipart([b"schedule", msgs.ScheduleMessage(
+        conn.send_multipart([b"build", msgs.BuildMessage(
             project=project,
-            delay=600  # TODO: configurable
+            delay=600,  # TODO: configurable
+            incremental=True
         ).pack()])
         if not conn.poll(cmd_timeout):
             raise ServiceUnavailable()

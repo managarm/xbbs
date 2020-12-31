@@ -10,6 +10,7 @@ import toml
 import zmq.green as zmq
 
 import xbbs.messages as msgs
+import xbbs.util as xutil
 from xbbs.coordinator import CONFIG_VALIDATOR
 
 zctx = zmq.Context.instance()
@@ -59,7 +60,11 @@ do_status.parser = subcommands.add_parser(
 
 
 def do_build(conn, args):
-    code, res = send_request(conn, "build", msgpack.dumps(args.project))
+    code, res = send_request(conn, "build", msgs.BuildMessage(
+        project=args.project,
+        delay=0,
+        incremental=args.incremental
+    ).pack())
     if code == 204:
         return
     res = msgpack.loads(res)
@@ -70,6 +75,12 @@ def do_build(conn, args):
 do_build.parser = subcommands.add_parser(
     "build",
     help="start a project build"
+)
+do_build.parser.add_argument(
+    "--incremental",
+    help="whether to fully rebuild, when unspecified left as project default",
+    dest="incremental",
+    action=xutil.TristateBooleanAction
 )
 do_build.parser.add_argument("project", help="project to build")
 
@@ -91,9 +102,10 @@ do_build.parser.add_argument("project", help="project to fail")
 
 
 def do_schedule(conn, args):
-    code, res = send_request(conn, "schedule", msgs.ScheduleMessage(
+    code, res = send_request(conn, "build", msgs.BuildMessage(
         project=args.project,
-        delay=args.delay
+        delay=args.delay,
+        incremental=args.incremental
     ).pack())
     if code == 204:
         return
@@ -105,6 +117,12 @@ def do_schedule(conn, args):
 do_schedule.parser = subcommands.add_parser(
     "schedule",
     help="start a project build after some seconds"
+)
+do_schedule.parser.add_argument(
+    "--incremental",
+    help="whether to fully rebuild, when unspecified left as project default",
+    dest="incremental",
+    action=xutil.TristateBooleanAction
 )
 do_schedule.parser.add_argument("project", help="project to build")
 do_schedule.parser.add_argument(

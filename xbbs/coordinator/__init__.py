@@ -429,7 +429,7 @@ def _load_version_information(project):
     return {"pkgs": pkgs, "tools": tools}
 
 
-def run_project(inst, project, delay):
+def run_project(inst, project, delay, incremental):
     @contextlib.contextmanager
     def _current_symlink():
         # XXX: if this fails two coordinators are running, perhaps that
@@ -441,10 +441,15 @@ def run_project(inst, project, delay):
         finally:
             os.unlink(current_file)
 
+    increment = project.incremental
+    if incremental is not None:
+        increment = incremental
+
     start = time.monotonic()
     success = False
     length = 0
     build = project.current
+
     with xutils.lock_file(build.build_directory, "coordinator"), \
          tempfile.TemporaryDirectory(dir=inst.tmp_dir) as projdir, \
          _current_symlink():
@@ -502,7 +507,7 @@ def run_project(inst, project, delay):
                     "--artifacts", "--json"
                 ]
                 stdinarg = {}
-                if project.incremental:
+                if increment:
                     vi = _load_version_information(project)
                     stdinarg = dict(input=json.dumps(vi).encode())
                     xbargs.extend(["--version-file", "fd:0"])
@@ -522,7 +527,7 @@ def run_project(inst, project, delay):
             roll_base = path.join(project.base, "rolling")
             rpkg_repo = path.join(roll_base, "package_repo")
             rtool_repo = path.join(roll_base, "tool_repo")
-            if path.exists(roll_base) and project.incremental:
+            if path.exists(roll_base) and increment:
                 build.update_state(msgs.BuildState.SETUP_REPOS)
                 log.info("populating build repository with up-to-date pkgs")
                 os.makedirs(package_repo)
@@ -562,9 +567,13 @@ def run_project(inst, project, delay):
                      project.name, success, length)
 
 
-def cmd_build(inst, name):
-    "handle starting a new build on a project by name"
-    name = msgpk.loads(name)
+def cmd_build(inst, arg):
+    "handle starting a new build on a project by name with a time delay"
+    msg = msgs.BuildMessage.unpack(arg)
+    name = msg.project
+    delay = msg.delay
+    incremental = msg.incremental
+
     if name not in inst.projects:
         return 404, msgpk.dumps("unknown project")
     proj = inst.projects[name]
@@ -572,7 +581,7 @@ def cmd_build(inst, name):
         return 409, msgpk.dumps("project already running")
 
     proj.current = Build.create(inst, proj)
-    pg = gevent.spawn(run_project, inst, proj, 0)
+    pg = gevent.spawn(run_project, inst, proj, delay, incremental)
     pg.link(lambda g, i=inst: inst.project_greenlets.remove(g))
     inst.project_greenlets.append(pg)
 
@@ -607,24 +616,6 @@ def cmd_status(inst, _):
         load=os.getloadavg(),
         pid=os.getpid()
     ).pack()
-
-
-def cmd_schedule(inst, arg):
-    "handle starting a new build on a project by name with a time delay"
-    msg = msgs.ScheduleMessage.unpack(arg)
-    name = msg.project
-    delay = msg.delay
-
-    if name not in inst.projects:
-        return 404, msgpk.dumps("unknown project")
-    proj = inst.projects[name]
-    if proj.current:
-        return 409, msgpk.dumps("project already running")
-
-    proj.current = Build.create(inst, proj)
-    pg = gevent.spawn(run_project, inst, proj, delay)
-    pg.link(lambda g, i=inst: inst.project_greenlets.remove(g))
-    inst.project_greenlets.append(pg)
 
 
 def command_loop(inst, sock_cmd):
@@ -667,7 +658,6 @@ def command_loop(inst, sock_cmd):
 
 
 command_loop.cmds = {
-    "schedule": cmd_schedule,
     "build": cmd_build,
     "fail": cmd_fail,
     "status": cmd_status

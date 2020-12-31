@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
+import argparse
 import contextlib
 import errno
 import fcntl
@@ -102,3 +103,26 @@ def hash_file(fobj, hashfunc=hashlib.blake2b):
         h.update(buf)
         buf = fobj.read(16 * 1024)
     return h.digest()
+
+
+class TristateBooleanAction(argparse.Action):
+    def __init__(self,
+                 option_strings,
+                 dest,
+                 **kwargs):
+        opts = []
+        for opt in option_strings:
+            if not opt.startswith("--"):
+                raise RuntimeError("tristates can only be flags")
+            opts.extend([opt, "--no-" + opt[2:]])
+
+        super(TristateBooleanAction, self).__init__(
+            option_strings=opts, dest=dest, **kwargs, nargs=0
+        )
+
+    def __call__(self, parser, namespace, values, opt=None):
+        if opt in self.option_strings:
+            setattr(namespace, self.dest, not opt.startswith("--no-"))
+
+    def format_usage(self):
+        return " OR ".join(self.option_strings)
