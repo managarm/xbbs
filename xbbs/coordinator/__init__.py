@@ -194,6 +194,7 @@ class Build:
     name = attr.ib()
     repository = attr.ib()
     build_directory = attr.ib()
+    incremental = attr.ib()
 
     revision = attr.ib(default=None)
     state = attr.ib(default=msgs.BuildState.SCHEDULED)
@@ -214,7 +215,8 @@ class Build:
             name=project.name,
             repository=project.git,
             # TODO(arsen): this should be stored in project as base_directory
-            build_directory=path.join(inst.project_base, project.name)
+            build_directory=path.join(inst.project_base, project.name),
+            incremental=project.incremental
         )
         inst.build_directory = path.join(
             inst.build_directory, inst.ts.strftime(xutils.TIMESTAMP_FORMAT)
@@ -250,7 +252,8 @@ class Build:
         # TODO(arsen): store more useful graph
         state = {
             "state": self.state.name,
-            "jobs": job_info
+            "jobs": job_info,
+            "incremental": self.incremental
         }
         if success is not None:
             state.update(success=success, run_time=length)
@@ -449,6 +452,8 @@ def run_project(inst, project, delay, incremental):
     success = False
     length = 0
     build = project.current
+
+    build.incremental = increment
 
     with xutils.lock_file(build.build_directory, "coordinator"), \
          tempfile.TemporaryDirectory(dir=inst.tmp_dir) as projdir, \

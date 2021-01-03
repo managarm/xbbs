@@ -79,6 +79,13 @@
 <h3>Job view</h3>
 	<strong>for {{ project }}</strong>
 	<br>{{ ts|humanizeiso }}<br>
+{%- if "incremental" in build %}
+{%- if not build.incremental %}
+	This build is incremental not an incremental build.
+{%- else %}
+	This build is incremental an incremental build.
+{%- endif %}
+{%- endif %}
 	{{ macros.build_status(build) }}
 	<a href="{{ url_for("show_log_list", proj=project, ts=ts) }}">
 		[all logs]
