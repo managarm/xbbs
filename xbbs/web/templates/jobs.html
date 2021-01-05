@@ -81,9 +81,9 @@
 	<br>{{ ts|humanizeiso }}<br>
 {%- if "incremental" in build %}
 {%- if not build.incremental %}
-	This build is incremental not an incremental build.
+	This build is not an incremental build.
 {%- else %}
-	This build is incremental an incremental build.
+	This build is an incremental build.
 {%- endif %}
 {%- endif %}
 	{{ macros.build_status(build) }}
