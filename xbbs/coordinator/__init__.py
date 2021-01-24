@@ -558,7 +558,10 @@ def run_project(inst, project, delay, incremental):
                     update_tool_registry(tool_fname, x)
             else:
                 log.debug("wiping rolling repos for non incremental build")
-                shutil.rmtree(roll_base)
+                try:
+                    shutil.rmtree(roll_base)
+                except FileNotFoundError:
+                    pass
 
             build.update_state(msgs.BuildState.RUNNING)
             success = solve_project(inst, project)
