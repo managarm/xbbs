@@ -556,6 +556,9 @@ def run_project(inst, project, delay, incremental):
                     shutil.copy2(tool_fname,
                                  target_file, follow_symlinks=False)
                     update_tool_registry(tool_fname, x)
+            else:
+                log.debug("wiping rolling repos for non incremental build")
+                shutil.rmtree(roll_base)
 
             build.update_state(msgs.BuildState.RUNNING)
             success = solve_project(inst, project)
