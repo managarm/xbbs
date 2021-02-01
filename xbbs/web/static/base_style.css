@@ -42,7 +42,7 @@ pre {
 	padding: 0 0;
 }
 
-@media only screen and ((min-width: 768px) or (orientation: landscape)) {
+@media only screen and (min-width: 768px) {
 	.container {
 		flex-direction: row;
 	}
