@@ -455,11 +455,11 @@ def run_project(inst, project, delay, incremental):
 
     build.incremental = increment
 
-    with xutils.lock_file(build.build_directory, "coordinator"), \
-         tempfile.TemporaryDirectory(dir=inst.tmp_dir) as projdir, \
-         _current_symlink():
-        gevent.time.sleep(delay)
-        try:
+    try:
+        with xutils.lock_file(build.build_directory, "coordinator"), \
+             tempfile.TemporaryDirectory(dir=inst.tmp_dir) as projdir, \
+             _current_symlink():
+            gevent.time.sleep(delay)
             build.update_state(msgs.BuildState.FETCH)
             check_call_logged(["git", "init"], cwd=projdir)
             check_call_logged(["git", "remote", "add", "origin",
@@ -565,17 +565,17 @@ def run_project(inst, project, delay, incremental):
 
             build.update_state(msgs.BuildState.RUNNING)
             success = solve_project(inst, project)
-        except Exception:
-            log.exception("build failed due to an exception")
-        finally:
-            length = time.monotonic() - start
-            project.current = None
-            # Update directly here to not do two writes to disk
-            build.state = msgs.BuildState.DONE
-            build.store_status(success=success, length=length)
+    except Exception:
+        log.exception("build failed due to an exception")
+    finally:
+        length = time.monotonic() - start
+        project.current = None
+        # Update directly here to not do two writes to disk
+        build.state = msgs.BuildState.DONE
+        build.store_status(success=success, length=length)
 
-            log.info("job {} done; success? {} in {}s",
-                     project.name, success, length)
+        log.info("job {} done; success? {} in {}s",
+                 project.name, success, length)
 
 
 def cmd_build(inst, arg):
