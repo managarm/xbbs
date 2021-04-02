@@ -26,6 +26,7 @@ packages = "file:///home/arsen/xbci/site-local/projects/managarm/current/package
 tools = "file:///home/arsen/xbci/site-local/projects/managarm/current/tool_repo"
 fingerprint = "99:12:e7:7d:3c:e1:7d:53:9b:4e:23:65:b6:6a:38:81"
 incremental = true
+mirror_root = "http://localhost/"
 
 [projects.mlibc]
 git = "/home/arsen/xbci/site-local/mlibc-repo"

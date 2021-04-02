@@ -140,9 +140,13 @@ def run_job(inst, sock, job, logfd):
 
         runcmd(["xbstrap", "init", source_dir], cwd=build_dir)
         with open(path.join(source_dir, "bootstrap-commits.yml"), "w") as rf:
-            json.dump({
-                "commits": job.commits_object
-            }, rf)
+            commit_obj = {
+                "general": {},
+                "commits": job.commits_object,
+            }
+            if job.mirror_root:
+                commit_obj["general"]["xbstrap_mirror"] = job.mirror_root
+            json.dump(commit_obj, rf)
         with open(siteyaml_file, "w") as siteyml:
             siteyml.write('{"pkg_management":{"format":"xbps"}}\n')
         if job.xbps_keys:

@@ -57,11 +57,12 @@ class JobStatus(Enum):
 class BuildState(Enum):
     SCHEDULED = (0, "Waiting to start...")
     FETCH = (1, "Fetching...")
-    SETUP = (2, "Setting up...")
-    CALCULATING = (3, "Calculating graph...")
-    SETUP_REPOS = (4, "Setting up repositories...")
-    RUNNING = (5, "Running...")
-    DONE = (6, "Done")
+    UPDATING_MIRRORS = (2, "Updating mirrors...")
+    SETUP = (3, "Setting up...")
+    CALCULATING = (4, "Calculating graph...")
+    SETUP_REPOS = (5, "Setting up repositories...")
+    RUNNING = (6, "Running...")
+    DONE = (7, "Done")
 
     @property
     def pretty(self):
@@ -147,6 +148,7 @@ class JobMessage(BaseMessage):
     commits_object = attr.ib(repr=False)
     # XXX: maybe it's worth doing something else
     xbps_keys = attr.ib(default=None, repr=False)
+    mirror_root = attr.ib(default=None)
     _validator = V.parse({
         "project": "string",
         "job": "string",
@@ -167,7 +169,8 @@ class JobMessage(BaseMessage):
         }),
         "?xbps_keys": V.Mapping(
             re.compile(r"^([a-zA-Z0-9]{2}:){15}[a-zA-Z0-9]{2}$"), bytes
-        )
+        ),
+        "?mirror_root": "?string",
     })
 
 

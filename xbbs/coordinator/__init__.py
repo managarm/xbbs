@@ -78,7 +78,8 @@ with V.parsing(required_properties=True,
             "packages": "string",
             "?fingerprint": "string",
             "tools": "string",
-            "?incremental": "boolean"
+            "?incremental": "boolean",
+            "?mirror_root": "string",
         })
     })
     PUBKEY_VALIDATOR = V.parse({
@@ -120,6 +121,7 @@ class Project:
     incremental = attr.ib(default=False)
     fingerprint = attr.ib(default=None)
     current = attr.ib(default=None)
+    mirror_root = attr.ib(default=None)
     tool_repo_lock = attr.ib(factory=gevent.lock.RLock)
 
 
@@ -385,7 +387,8 @@ def solve_project(inst, projinfo):
                 tool_repo=projinfo.tools,
                 pkg_repo=projinfo.packages,
                 commits_object=build.commits_object,
-                xbps_keys=keys
+                xbps_keys=keys,
+                mirror_root=projinfo.mirror_root,
             )
             log.debug("sending job request {}", jobreq)
             inst.pipeline.send(jobreq.pack())
@@ -476,6 +479,19 @@ def run_project(inst, project, delay, incremental):
                 #      JSONs into memory
                 xutils.run_hook(log, projdir, td, "pregraph")
                 check_call_logged(["xbstrap", "init", projdir], cwd=td)
+                if project.mirror_root:
+                    build.update_state(msgs.BuildState.UPDATING_MIRRORS)
+                    mirror_build_dir = path.join(project.base, "mirror_build")
+                    os.makedirs(mirror_build_dir, exist_ok=True)
+                    try:
+                        os.remove(path.join(mirror_build_dir,
+                                            "bootstrap.link"))
+                    except FileNotFoundError:
+                        pass
+                    check_call_logged(["xbstrap", "init", projdir],
+                                      cwd=mirror_build_dir)
+                    check_call_logged(["xbstrap-mirror", "update"],
+                                      cwd=mirror_build_dir)
 
                 check_call_logged(["xbstrap", "rolling-versions", "fetch"],
                                   cwd=td)
