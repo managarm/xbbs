@@ -18,7 +18,7 @@ Logs for {{ project }}/{{ job }} @ {{ ts }}
 	<iframe class="seamless chromium-height-hack"
 		src="{{ raw }}" title="{{ job }} log"
 		style="flex-grow: 1;"
-		onload="this.contentWindow.scroll(0, Number.MAX_SAFE_INTEGER)">
+		onload="this.contentWindow.scroll(0, this.contentWindow.scrollMaxY || Number.MAX_SAFE_INTEGER)">
 		get a better browser
 	</iframe>
 {%- endblock %}
