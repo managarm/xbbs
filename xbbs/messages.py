@@ -149,6 +149,7 @@ class JobMessage(BaseMessage):
     # XXX: maybe it's worth doing something else
     xbps_keys = attr.ib(default=None, repr=False)
     mirror_root = attr.ib(default=None)
+    distfile_path = attr.ib(default=None)
     _validator = V.parse({
         "project": "string",
         "job": "string",
@@ -163,6 +164,8 @@ class JobMessage(BaseMessage):
         "prod_files": ["string"],
         "tool_repo": "string",
         "pkg_repo": "string",
+        "?distfile_path": "string",
+        "?mirror_root": "string",
         "commits_object": V.Mapping("string", {
             "?rolling_id": "string",
             "?fixed_commit": "string"
@@ -170,7 +173,6 @@ class JobMessage(BaseMessage):
         "?xbps_keys": V.Mapping(
             re.compile(r"^([a-zA-Z0-9]{2}:){15}[a-zA-Z0-9]{2}$"), bytes
         ),
-        "?mirror_root": "?string",
     })
 
 

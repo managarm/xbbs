@@ -79,6 +79,7 @@ with V.parsing(required_properties=True,
             "?fingerprint": "string",
             "tools": "string",
             "?incremental": "boolean",
+            "?distfile_path": "string",
             "?mirror_root": "string",
         })
     })
@@ -122,6 +123,7 @@ class Project:
     packages = attr.ib()
     tools = attr.ib()
     base = attr.ib()
+    distfile_path = attr.ib(default="xbbs/")
     incremental = attr.ib(default=False)
     fingerprint = attr.ib(default=None)
     current = attr.ib(default=None)
@@ -394,6 +396,7 @@ def solve_project(inst, projinfo):
                 commits_object=build.commits_object,
                 xbps_keys=keys,
                 mirror_root=projinfo.mirror_root,
+                distfile_path=projinfo.distfile_path,
             )
             log.debug("sending job request {}", jobreq)
             inst.pipeline.send(jobreq.pack())
@@ -479,11 +482,13 @@ def run_project(inst, project, delay, incremental):
             rev = check_output_logged(["git", "rev-parse", "HEAD"],
                                       cwd=projdir).decode().strip()
             build.update_state(msgs.BuildState.SETUP)
+
             with tempfile.TemporaryDirectory(dir=inst.tmp_dir) as td:
-                # XXX: these could probably be improved to not load the whole
-                #      JSONs into memory
-                xutils.run_hook(log, projdir, td, "pregraph")
+                distfiles = path.join(projdir, project.distfile_path)
+                if path.isdir(distfiles):
+                    xutils.merge_tree_into(distfiles, td)
                 check_call_logged(["xbstrap", "init", projdir], cwd=td)
+
                 if project.mirror_root:
                     build.update_state(msgs.BuildState.UPDATING_MIRRORS)
                     mirror_build_dir = path.join(project.base, "mirror_build")

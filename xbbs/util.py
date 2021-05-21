@@ -8,7 +8,7 @@ import os
 import os.path as path
 import plistlib
 import re
-import subprocess
+import shutil
 import tarfile
 
 import attr
@@ -18,19 +18,6 @@ import zstandard
 
 PROJECT_REGEX = re.compile(r"^[a-zA-Z][_a-zA-Z0-9]{0,30}$")
 TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S"
-
-
-def run_hook(log, source_dir, build_dir, name, *, outfd=None, **extraenv):
-    hook_cmd = path.join(source_dir, 'ci/hook')
-    if os.access(hook_cmd, os.X_OK):
-        e = os.environ.copy()
-        e['SOURCE_DIR'] = source_dir
-        e['BUILD_DIR'] = build_dir
-        e.update(extraenv)
-        log.info("executing hook {}", name)
-        subprocess.check_call([hook_cmd, name], cwd=build_dir, env=e,
-                              stdin=subprocess.DEVNULL,
-                              stdout=outfd, stderr=outfd)
 
 
 # this does not help with normal files
@@ -126,3 +113,22 @@ class TristateBooleanAction(argparse.Action):
 
     def format_usage(self):
         return " OR ".join(self.option_strings)
+
+
+def merge_tree_into(src, dst):
+    def _raise(x):
+        raise x
+
+    for root, dirs, files in os.walk(src, onerror=_raise):
+        for dirn in dirs:
+            source = path.join(root, dirn)
+            dest = path.join(dst, path.relpath(root, start=src), dirn)
+            try:
+                os.mkdir(dest)
+            except FileExistsError:
+                pass
+            shutil.copystat(source, dest)
+        for filen in files:
+            source = path.join(root, filen)
+            dest = path.join(dst, path.relpath(root, start=src), filen)
+            shutil.copy2(source, dest)

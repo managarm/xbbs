@@ -109,8 +109,8 @@ def run_job(inst, sock, job, logfd):
     tools_dir = path.join(build_dir, "tools")
     sysroot = path.join(build_dir, "system-root")
     repo_dir = path.join(build_dir, "xbps-repo")
+    distfiles = path.join(source_dir, job.distfile_path)
     read_end = None
-    siteyaml_file = path.join(build_dir, "bootstrap-site.yml")
     uploads = []
 
     def runcmd(cmd, **kwargs):
@@ -135,9 +135,8 @@ def run_job(inst, sock, job, logfd):
         runcmd(["git", "checkout", "--detach", job.revision],
                cwd=source_dir)
 
-        xutils.run_hook(log, source_dir, build_dir, "prejob", outfd=logfd,
-                        XBBS_JOB=job.job)
-
+        if path.isdir(distfiles):
+            xutils.merge_tree_into(distfiles, build_dir)
         runcmd(["xbstrap", "init", source_dir], cwd=build_dir)
         with open(path.join(source_dir, "bootstrap-commits.yml"), "w") as rf:
             commit_obj = {
@@ -147,8 +146,6 @@ def run_job(inst, sock, job, logfd):
             if job.mirror_root:
                 commit_obj["general"]["xbstrap_mirror"] = job.mirror_root
             json.dump(commit_obj, rf)
-        with open(siteyaml_file, "w") as siteyml:
-            siteyml.write('{"pkg_management":{"format":"xbps"}}\n')
         if job.xbps_keys:
             # XXX: this assumes standard xbps paths relative to sysroot
             keysdir = path.join(sysroot, "var/db/xbps/keys")
