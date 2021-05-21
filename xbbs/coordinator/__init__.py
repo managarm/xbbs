@@ -89,7 +89,11 @@ with V.parsing(required_properties=True,
 
 with V.parsing(required_properties=True, additional_properties=None):
     # { job_name: job }
-    ARTIFACT_VALIDATOR = V.parse({"name": "string", "version": "string"})
+    ARTIFACT_VALIDATOR = V.parse({
+        "name": "string",
+        "version": "string",
+        "?architecture": "string",  # XXX: currently unused
+    })
     JOB_REGEX = re.compile(r"^[a-z]+:.*$")
     GRAPH_VALIDATOR = V.parse(V.Mapping(JOB_REGEX, {
         "up2date": "boolean",
@@ -159,6 +163,7 @@ class Artifact:
     kind = attr.ib()
     name = attr.ib()
     version = attr.ib()
+    architecture = attr.ib(default="x86_64")  # XXX: unused, currently
     received = attr.ib(default=False, eq=False, order=False)
     failed = attr.ib(default=False, eq=False, order=False)
 
