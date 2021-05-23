@@ -132,6 +132,9 @@ PKG_TOOL_VALIDATOR = V.parse(V.Mapping("string", "string"))
 
 @attr.s
 class JobMessage(BaseMessage):
+    @staticmethod
+    def _filter(x, v):
+        return v is not None
     project = attr.ib()
     job = attr.ib()
     repository = attr.ib()
