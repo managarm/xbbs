@@ -266,9 +266,9 @@ def collect_logs(job, output, fd):
 
 
 LOG_FORMAT = "".join([
-    "'[{record.time:%Y-%m-%d %H:%M:%S.%f%z} ",
+    "[{record.time:%Y-%m-%d %H:%M:%S.%f%z} ",
     socket.gethostname(),
-    "] {record.level_name}: {record.channel}: {record.message}'",
+    "] {record.level_name}: {record.channel}: {record.message}",
 ])
 
 
