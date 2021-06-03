@@ -4,6 +4,7 @@ import json
 import os
 import os.path as path
 import shutil
+import socket
 import subprocess
 import tarfile
 import time
@@ -264,6 +265,13 @@ def collect_logs(job, output, fd):
                 sock.send_multipart([b"log", msg.pack()])
 
 
+LOG_FORMAT = "".join([
+    "'[{record.time:%Y-%m-%d %H:%M:%S.%f%z} ",
+    socket.gethostname(),
+    "] {record.level_name}: {record.channel}: {record.message}'",
+])
+
+
 def main():
     global log
     StderrHandler().push_application()
@@ -292,6 +300,7 @@ def main():
                     logcoll = gevent.spawn(collect_logs, job, output, logrd)
                     try:
                         with StreamHandler(xutils.open_coop(logwr, mode="w"),
+                                           format_string=LOG_FORMAT,
                                            bubble=True):
                             run_job(inst, output, job, logwr)
                     finally:
