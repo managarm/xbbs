@@ -156,7 +156,7 @@ def run_job(inst, sock, job, logfd):
                 with open(keyfile, "wb") as pkf:
                     pkf.write(pubkey)
         if len(job.needed_pkgs):
-            runcmd(["xbps-install", "-y",
+            runcmd(["xbps-install", "-Uy",
                     "-R", process_repo_url(job.pkg_repo),
                     "-r", sysroot,
                     "-SM", "--"] + list(job.needed_pkgs))
