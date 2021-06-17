@@ -9,23 +9,23 @@ import os.path as path
 from datetime import datetime
 from functools import wraps
 
+import flask.json
 import humanize
 import msgpack
 import zmq.green as zmq
-from flask import (Flask, make_response, render_template, safe_join,
-                   send_from_directory, url_for)
-from werkzeug.exceptions import NotFound, ServiceUnavailable
+from flask import (Flask, jsonify, make_response, render_template, request,
+                   safe_join, send_from_directory, url_for)
+from werkzeug.exceptions import NotAcceptable, NotFound, ServiceUnavailable
 
 import xbbs.messages as msgs
 import xbbs.util as xutils
 
-app = Flask(__name__)
-app.use_x_sendfile = os.getenv("XBBS_USE_X_SENDFILE", "").lower() in [
-    "1", "t", "true", "yes",
-]
-coordinator = os.environ["XBBS_COORDINATOR_ENDPOINT"]
-projbase = os.environ["XBBS_PROJECT_BASE"]
-zctx = zmq.Context.instance()
+
+class ExtendedJSONEncoder(flask.json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, msgs.BuildState):
+            return o.name
+        return super().default(0)
 
 
 class BackendError(RuntimeError):
@@ -38,7 +38,17 @@ class BackendError(RuntimeError):
         super().__init__(f"Coordinator sent back code {self.status_code}, {r}")
 
 
-def load_build(status, proj, ts):
+app = Flask(__name__)
+app.use_x_sendfile = os.getenv("XBBS_USE_X_SENDFILE", "").lower() in [
+    "1", "t", "true", "yes",
+]
+app.json_encoder = ExtendedJSONEncoder
+coordinator = os.environ["XBBS_COORDINATOR_ENDPOINT"]
+projbase = os.environ["XBBS_PROJECT_BASE"]
+zctx = zmq.Context.instance()
+
+
+def load_build(status, proj, ts, *, adjust_small_time=True):
     base_dir = safe_join(projbase, proj, ts)
     if not path.isdir(base_dir):
         raise NotFound()
@@ -65,7 +75,7 @@ def load_build(status, proj, ts):
     build["running"] = xutils.is_locked(base_dir, "coordinator", status.pid)
     if "run_time" not in build:
         build["finished"] = False
-    elif build["run_time"] < 1:
+    elif build["run_time"] < 1 and adjust_small_time:
         build["run_time"] = "no time"
     build["base_dir"] = base_dir
     return build
@@ -312,7 +322,7 @@ def format_timestamp(x):
     return datetime.utcfromtimestamp(x).strftime("%d-%b-%Y %H:%m")
 
 
-def find_latest_build(status, proj):
+def find_latest_build(status, proj, **kwargs):
     project = safe_join(projbase, proj)
     try:
         _listdir = os.listdir(project)
@@ -330,7 +340,7 @@ def find_latest_build(status, proj):
             dt = datetime.strptime(x, xutils.TIMESTAMP_FORMAT)
         except ValueError:
             continue
-        bi = load_build(status, proj, x)
+        bi = load_build(status, proj, x, **kwargs)
         if not bi.get("success", False):
             continue
         if not latest_build_dt or dt > latest_build_dt:
@@ -424,3 +434,49 @@ def dl_file(proj, ts, filename):
         (info, ts) = find_latest_build(status, proj)
     pkgf = safe_join(projbase, proj, ts, "file_repo")
     return send_from_directory(pkgf, filename, as_attachment=True)
+
+
+# XXX: the following bits follow a yet-to-be-stabilized future URL convention.
+#      the rest of the project should be updated to follow it at some point. DO
+#      NOT forget to update this.
+
+@app.route("/projects/<proj>/builds")
+def show_build_list_json(proj):
+    status = msgs.StatusMessage.unpack(send_request(b"status", b""))
+    bm = request.accept_mimetypes.best_match(["text/html", "application/json"])
+    if bm == "application/json":
+        builds = {}
+        _listdir = os.listdir(safe_join(projbase, proj))
+        for build in _listdir:
+            try:
+                datetime.strptime(build, xutils.TIMESTAMP_FORMAT)
+            except ValueError:
+                continue
+            loaded_build = load_build(status, proj, build,
+                                      adjust_small_time=False)
+            builds[build] = {
+                k: v for k, v in loaded_build.items()
+                if k not in ["jobs", "base_dir"]
+            }
+        return jsonify(builds)
+    else:
+        # TODO(arsen): add HTML handling here
+        raise NotAcceptable()
+
+
+@app.route("/projects/<proj>/latest")
+@app.route("/projects/<proj>/<ts>")
+def show_build_json(proj, ts="latest"):
+    status = msgs.StatusMessage.unpack(send_request(b"status", b""))
+    bm = request.accept_mimetypes.best_match(["text/html", "application/json"])
+    if bm == "application/json":
+        if ts == "latest":
+            (info, ts) = find_latest_build(status, proj,
+                                           adjust_small_time=False)
+        else:
+            info = load_build(status, proj, ts, adjust_small_time=False)
+        # TODO(arsen): add download url to artifacts?
+        return jsonify({k: v for k, v in info.items() if k != "base_dir"})
+    else:
+        # TODO(arsen): add HTML handling here
+        raise NotAcceptable()
