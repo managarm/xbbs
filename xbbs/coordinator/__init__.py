@@ -264,6 +264,7 @@ class Build:
             "jobs": job_info,
             "incremental": self.incremental,
             "commits_object": self.commits_object,
+            "revision": self.revision,
         }
         if success is not None:
             state.update(success=success, run_time=length)
