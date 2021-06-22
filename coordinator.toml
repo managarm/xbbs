@@ -7,9 +7,7 @@ command_endpoint = "ipc:///home/arsen/xbci/site-local/xbbs-cmd-socket"
 # equal in the validation phase of config parsing
 #	{ bind = "tcp://127.0.0.1:16001", connect = "tcp://localhost:16001" }
 intake = "tcp://127.0.0.1:16999"
-workers = [
-	"tcp://127.0.0.1:16001"
-]
+worker_endpoint = "tcp://127.0.0.1:16001"
 project_base = "/home/arsen/xbci/site-local/projects"
 # do not change this value after initial setup, it's used by the workers to
 # determine the path where packages should be built, because some packages

@@ -28,7 +28,8 @@ import xbbs.util as xutils
 
 with V.parsing(required_properties=True, additional_properties=None):
     CONFIG_VALIDATOR = V.parse({
-        "submit_endpoint": "string"
+        "job_endpoint": "string",
+        "capabilities": V.Nullable(V.AdaptBy(xutils.list_to_set), set()),
     })
 
 
@@ -282,11 +283,15 @@ def main():
     with open(path.join(XBBS_CFG_DIR, "worker.toml"), "r") as fcfg:
         cfg = CONFIG_VALIDATOR.validate(toml.load(fcfg))
 
+    job_request = msgs.JobRequest(
+        capabilities=cfg["capabilities"]
+    ).pack()
+
     log.info(cfg)
-    with inst.zmq.socket(zmq.PULL) as jobs:
-        jobs.set_hwm(1)
-        jobs.bind(cfg["submit_endpoint"])
+    with inst.zmq.socket(zmq.REQ) as jobs:
+        jobs.connect(cfg["job_endpoint"])
         while True:
+            jobs.send(job_request)
             log.debug("waiting for job...")
             try:
                 job = msgs.JobMessage.unpack(jobs.recv())

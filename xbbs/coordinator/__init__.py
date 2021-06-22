@@ -20,6 +20,7 @@ from hashlib import blake2b
 import attr
 import gevent
 import gevent.event
+import gevent.queue
 import gevent.time
 import msgpack as msgpk
 import toml
@@ -61,13 +62,13 @@ with V.parsing(required_properties=True,
     def _path_exists(x):
         return os.access(x, os.R_OK)
 
-    # TODO(arsen): write an endpoint validator for workers
+    # TODO(arsen): write an endpoint validator
     CONFIG_VALIDATOR = V.parse({
         "command_endpoint": V.AdaptBy(_receive_adaptor),
         "project_base": "string",
         "build_root": V.AllOf("string", path.isabs),
         "intake": V.AdaptBy(_receive_adaptor),
-        "workers": ["string"],
+        "worker_endpoint": "string",
         # use something like a C identifier, except disallow underscore as a
         # first character too. this is so that we have a namespace for xbbs
         # internal directories, such as collection directories
@@ -99,6 +100,8 @@ with V.parsing(required_properties=True, additional_properties=None):
     GRAPH_VALIDATOR = V.parse(V.Mapping(JOB_REGEX, {
         "up2date": "boolean",
         "unstable": "boolean",
+        # TODO(arsen): remove nullability when xbstrap updates
+        "?capabilities": V.AdaptBy(xutils.list_to_set),
         "products": {
             "tools": [ARTIFACT_VALIDATOR],
             "pkgs": [ARTIFACT_VALIDATOR],
@@ -138,11 +141,12 @@ class Xbbs:
     tmp_dir = attr.ib()
     build_root = attr.ib()
     intake_address = attr.ib()
-    pipeline = attr.ib(default=None)
+    worker_endpoint = attr.ib(default=None)
     intake = attr.ib(default=None)
     projects = attr.ib(factory=dict)
     project_greenlets = attr.ib(factory=list)
     zmq = attr.ib(default=zmq.Context.instance())
+    outgoing_job_queue = attr.ib(factory=gevent.queue.Queue)
 
     @classmethod
     def create(cls, cfg):
@@ -177,6 +181,7 @@ class Job:
     unstable = attr.ib()
     deps = attr.ib(factory=list)
     products = attr.ib(factory=list)
+    capabilities = attr.ib(factory=set)
     status = attr.ib(default=msgs.JobStatus.WAITING)
     exit_code = attr.ib(default=None)
     run_time = attr.ib(default=None)
@@ -401,7 +406,7 @@ def solve_project(inst, projinfo):
                 distfile_path=projinfo.distfile_path,
             )
             log.debug("sending job request {}", jobreq)
-            inst.pipeline.send(jobreq.pack())
+            inst.outgoing_job_queue.put((job.capabilities, jobreq.pack()))
 
         build.store_status()
 
@@ -943,6 +948,30 @@ intake_loop.cmds = {
 }
 
 
+def job_handling_coroutine(inst, rid, request):
+    while True:
+        (caps, job) = inst.outgoing_job_queue.get()
+        if not caps.issubset(request.capabilities):
+            inst.outgoing_job_queue.put((caps, job))
+            continue
+        inst.worker_endpoint.send_multipart([rid, b"", job])
+        break
+
+
+def job_pull_loop(inst):
+    while True:
+        try:
+            [rid, _, request] = inst.worker_endpoint.recv_multipart()
+            request = msgs.JobRequest.unpack(request)
+            log.debug("received job request from {}: {}", rid, request)
+            gevent.spawn(job_handling_coroutine, inst, rid, request)
+        except zmq.ZMQError:
+            log.exception("job request i/o error, aborting")
+            return
+        except Exception as e:
+            log.exception("job request error, continuing", e)
+
+
 def dump_projects(xbbs):
     running = 0
     for name, proj in xbbs.projects.items():
@@ -975,23 +1004,22 @@ def main():
 
     with inst.zmq.socket(zmq.REP) as sock_cmd, \
          inst.zmq.socket(zmq.PULL) as inst.intake, \
-         inst.zmq.socket(zmq.PUSH) as inst.pipeline:
+         inst.zmq.socket(zmq.ROUTER) as inst.worker_endpoint:
         inst.intake.bind(cfg["intake"]["bind"])
-        for x in cfg["workers"]:
-            inst.pipeline.connect(x)
+        inst.worker_endpoint.bind(cfg["worker_endpoint"])
 
         sock_cmd.bind(cfg["command_endpoint"]["bind"])
         dumper = gevent.signal_handler(signal.SIGUSR1, dump_projects, inst)
         log.info("startup")
         intake = gevent.spawn(intake_loop, inst)
+        job_pull = gevent.spawn(job_pull_loop, inst)
         try:
             command_loop(inst, sock_cmd)
         finally:
             # XXX: This may not be the greatest way to handle this
             gevent.killall(inst.project_greenlets[:])
             gevent.kill(intake)
+            gevent.kill(job_pull)
             dumper.cancel()
 
 # TODO(arsen): make a clean exit
-# TODO(arsen): handle the case in which workers do not successfully connect
-#              and/or disconnect

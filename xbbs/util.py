@@ -14,6 +14,7 @@ import tarfile
 import attr
 import gevent.fileobject as gfobj
 import gevent.lock as glock
+import valideer as V
 import zstandard
 
 PROJECT_REGEX = re.compile(r"^[a-zA-Z][_a-zA-Z0-9]{0,30}$")
@@ -132,3 +133,9 @@ def merge_tree_into(src, dst):
             source = path.join(root, filen)
             dest = path.join(dst, path.relpath(root, start=src), filen)
             shutil.copy2(source, dest)
+
+
+# TODO(arsen): the semantics here are wrong
+@V.accepts(x=["string"])
+def list_to_set(x):
+    return set(x)

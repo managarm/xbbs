@@ -6,6 +6,8 @@ import attr
 import msgpack
 import valideer as V
 
+import xbbs.util as xutils
+
 
 class JobStatus(Enum):
     WAITING = (1, "Waiting", "running")
@@ -272,6 +274,14 @@ class BuildMessage(BaseMessage):
         "project": "string",
         "delay": "number",
         "?incremental": V.Nullable("boolean")
+    })
+
+
+@attr.s
+class JobRequest(BaseMessage):
+    capabilities = attr.ib()
+    _validator = V.parse({
+        "capabilities": V.AdaptBy(xutils.list_to_set)
     })
 
 
