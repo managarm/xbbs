@@ -987,6 +987,13 @@ def dump_projects(xbbs):
         log.info("project {} running: {}", name, proj.current)
     log.info("running {} project(s)", running)
 
+    log.info("outgoing qsize: {}", xbbs.outgoing_job_queue.qsize())
+    try:
+        x = xbbs.outgoing_job_queue.peek_nowait()
+        log.info("last item on queue: {}", x)
+    except gevent.queue.Empty:
+        pass
+
 
 def main():
     global log
