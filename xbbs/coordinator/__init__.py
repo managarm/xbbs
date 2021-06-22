@@ -954,8 +954,14 @@ def job_handling_coroutine(inst, rid, request):
         if not caps.issubset(request.capabilities):
             inst.outgoing_job_queue.put((caps, job))
             continue
-        inst.worker_endpoint.send_multipart([rid, b"", job])
-        break
+        try:
+            inst.worker_endpoint.send_multipart([rid, b"", job])
+            return
+        except zmq.ZMQError as e:
+            if e.errno == zmq.EHOSTUNREACH:
+                inst.outgoing_job_queue.put((caps, job))
+                return
+            raise
 
 
 def job_pull_loop(inst):
@@ -1007,6 +1013,7 @@ def main():
          inst.zmq.socket(zmq.ROUTER) as inst.worker_endpoint:
         inst.intake.bind(cfg["intake"]["bind"])
         inst.worker_endpoint.bind(cfg["worker_endpoint"])
+        inst.worker_endpoint.set(zmq.ROUTER_MANDATORY, 1)
 
         sock_cmd.bind(cfg["command_endpoint"]["bind"])
         dumper = gevent.signal_handler(signal.SIGUSR1, dump_projects, inst)
