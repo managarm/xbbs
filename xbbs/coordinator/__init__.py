@@ -82,6 +82,7 @@ with V.parsing(required_properties=True,
             "?incremental": "boolean",
             "?distfile_path": "string",
             "?mirror_root": "string",
+            "?default_branch": "string",
         })
     })
     PUBKEY_VALIDATOR = V.parse({
@@ -131,6 +132,7 @@ class Project:
     fingerprint = attr.ib(default=None)
     current = attr.ib(default=None)
     mirror_root = attr.ib(default=None)
+    default_branch = attr.ib(default="master")
     tool_repo_lock = attr.ib(factory=gevent.lock.RLock)
 
 
@@ -484,7 +486,8 @@ def run_project(inst, project, delay, incremental):
                                project.git], cwd=projdir)
             check_call_logged(["git", "fetch", "origin"], cwd=projdir)
             # TODO(arsen): support non-master builds
-            check_call_logged(["git", "checkout", "--detach", "origin/master"],
+            refspec = f"origin/{project.default_branch}"
+            check_call_logged(["git", "checkout", "--detach", refspec],
                               cwd=projdir)
             rev = check_output_logged(["git", "rev-parse", "HEAD"],
                                       cwd=projdir).decode().strip()
