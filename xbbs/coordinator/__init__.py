@@ -659,7 +659,7 @@ def cmd_status(inst, _):
         }
     return msgs.StatusMessage(
         projects=projmap,
-        hostname=socket.gethostname(),
+        hostname=socket.getfqdn(),
         load=os.getloadavg(),
         pid=os.getpid()
     ).pack()
