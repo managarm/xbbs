@@ -24,6 +24,7 @@ with V.parsing(required_properties=True,
     CONFIG_VALIDATOR = V.parse({
         "coordinator_endpoint": "string",
         "?coordinator_timeout": "integer",
+        "?start_delay": "integer",
         "?github_secret": "string",
         "?github": V.Mapping("string", "string")
     })
@@ -34,6 +35,7 @@ with open(path.join(XBBS_CFG_DIR, "webhooks.toml"), "r") as fcfg:
 
 coordinator = cfg["coordinator_endpoint"]
 cmd_timeout = cfg.get("coordinator_timeout", 1500)
+start_delay = cfg.get("start_delay", 600)
 hmac_key = cfg.get("github_secret", None)
 github_mapping = cfg.get("github", {})
 
@@ -78,7 +80,7 @@ def github():
         conn.connect(coordinator)
         conn.send_multipart([b"build", msgs.BuildMessage(
             project=project,
-            delay=600,  # TODO: configurable
+            delay=start_delay,
             incremental=True
         ).pack()])
         if not conn.poll(cmd_timeout):
