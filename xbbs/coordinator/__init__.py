@@ -951,17 +951,37 @@ intake_loop.cmds = {
 }
 
 
+def _send_ignore_unreachable(sock, *args, **kwargs):
+    try:
+        sock.send_multipart(*args, **kwargs)
+        return
+    except zmq.ZMQError as e:
+        if e.errno == zmq.EHOSTUNREACH:
+            return
+        raise
+
+
 def job_handling_coroutine(inst, rid, request):
     while True:
-        (caps, job) = inst.outgoing_job_queue.get()
+        try:
+            (caps, job) = inst.outgoing_job_queue.get(timeout=60)
+        except gevent.queue.Empty:
+            # send a null message as a heartbeat
+            _send_ignore_unreachable(inst.worker_endpoint, [rid, b"", b""])
+            return
+
         if not caps.issubset(request.capabilities):
+            # TODO(arsen): prevent aggressive spinning when there's a single
+            # unfit worker
             inst.outgoing_job_queue.put((caps, job))
             continue
+
         try:
             inst.worker_endpoint.send_multipart([rid, b"", job])
             return
         except zmq.ZMQError as e:
             if e.errno == zmq.EHOSTUNREACH:
+                log.debug("{} unreachable, reusing its job", rid)
                 inst.outgoing_job_queue.put((caps, job))
                 return
             raise

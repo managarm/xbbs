@@ -273,6 +273,25 @@ LOG_FORMAT = "".join([
 ])
 
 
+def process_job_msg(inst, msg):
+    job = msgs.JobMessage.unpack(msg)
+    inst.current_project = job.project
+    inst.current_job = job.job
+    with inst.zmq.socket(zmq.PUSH) as unlocked_out:
+        unlocked_out.set(zmq.LINGER, -1)
+        unlocked_out.connect(job.output)
+        output = xutils.Locked(unlocked_out)
+        (logrd, logwr) = os.pipe()
+        logcoll = gevent.spawn(collect_logs, job, output, logrd)
+        try:
+            with StreamHandler(xutils.open_coop(logwr, mode="w"),
+                               format_string=LOG_FORMAT,
+                               bubble=True):
+                run_job(inst, output, job, logwr)
+        finally:
+            logcoll.join()
+
+
 def main():
     global log
     StderrHandler().push_application()
@@ -288,33 +307,33 @@ def main():
     ).pack()
 
     log.info(cfg)
-    with inst.zmq.socket(zmq.REQ) as jobs:
-        jobs.connect(cfg["job_endpoint"])
-        while True:
-            jobs.send(job_request)
-            log.debug("waiting for job...")
-            try:
-                job = msgs.JobMessage.unpack(jobs.recv())
-                inst.current_project = job.project
-                inst.current_job = job.job
-                with inst.zmq.socket(zmq.PUSH) as unlocked_out:
-                    unlocked_out.set(zmq.LINGER, -1)
-                    unlocked_out.connect(job.output)
-                    output = xutils.Locked(unlocked_out)
-                    (logrd, logwr) = os.pipe()
-                    logcoll = gevent.spawn(collect_logs, job, output, logrd)
-                    try:
-                        with StreamHandler(xutils.open_coop(logwr, mode="w"),
-                                           format_string=LOG_FORMAT,
-                                           bubble=True):
-                            run_job(inst, output, job, logwr)
-                    finally:
-                        logcoll.join()
-            except KeyboardInterrupt:
-                log.exception("interrupted")
-                break
-            except Exception as e:
-                log.exception("job error", e)
+    while True:
+        with inst.zmq.socket(zmq.REQ) as jobs:
+            jobs.connect(cfg["job_endpoint"])
+
+            while True:
+                jobs.send(job_request)
+                log.debug("waiting for job...")
+                # the coordinator sends a heartbeat each minute, so 1.5 minutes
+                # should be a sane duration to assume coordinator death on
+                if jobs.poll(90000) == 0:
+                    # breaking the inner loop will cause a reconnect
+                    # since the coordinator is presumed dead, drop requests yet
+                    # unsent to it
+                    jobs.set(zmq.LINGER, 0)
+                    log.debug("dropping socket after a heartbeat timeout")
+                    break
+                try:
+                    msg = jobs.recv()
+                    if len(msg) == 0:
+                        # drop null msgs
+                        continue
+                    process_job_msg(inst, msg)
+                except KeyboardInterrupt:
+                    log.exception("interrupted")
+                    break
+                except Exception as e:
+                    log.exception("job error", e)
 
 
 if __name__ == "__main__":
