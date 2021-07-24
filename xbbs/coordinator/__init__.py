@@ -1018,6 +1018,12 @@ def dump_projects(xbbs):
         pass
 
 
+def _ipc_chmod(sockurl, perms):
+    if not sockurl.startswith("ipc://"):
+        return
+    os.chmod(sockurl[6:], perms)
+
+
 def main():
     global log
     StderrHandler().push_application()
@@ -1041,11 +1047,18 @@ def main():
     with inst.zmq.socket(zmq.REP) as sock_cmd, \
          inst.zmq.socket(zmq.PULL) as inst.intake, \
          inst.zmq.socket(zmq.ROUTER) as inst.worker_endpoint:
+        # XXX: potentially make perms overridable? is that useful in any
+        #      capacity?
         inst.intake.bind(cfg["intake"]["bind"])
+        _ipc_chmod(cfg["intake"]["bind"], 0o664)
+
         inst.worker_endpoint.bind(cfg["worker_endpoint"])
         inst.worker_endpoint.set(zmq.ROUTER_MANDATORY, 1)
+        _ipc_chmod(cfg["worker_endpoint"], 0o664)
 
         sock_cmd.bind(cfg["command_endpoint"]["bind"])
+        _ipc_chmod(cfg["command_endpoint"]["bind"], 0o664)
+
         dumper = gevent.signal_handler(signal.SIGUSR1, dump_projects, inst)
         log.info("startup")
         intake = gevent.spawn(intake_loop, inst)
