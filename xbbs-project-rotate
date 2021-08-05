@@ -4,13 +4,15 @@
 Looks for builds of the given project (or cwd), removes outdated artifacts and
 builds older than a month, preserving at least one successful build.
 """
+import glob
+import json
 import os
 import os.path as path
-import json
-import glob
 import shutil
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+import xbbs.utils as xutils
 
 if len(sys.argv) > 1:
     os.chdir(sys.argv[1])
@@ -48,7 +50,8 @@ def rmtree_errors(fn, path, excinfo):
 for f in remove_list:
     tsdir = path.dirname(f)
     if not passed_month:
-        delta = datetime.now() - datetime.strptime(tsdir, TIMESTAMP_FORMAT)
+        delta = datetime.now(timezone.utc) - \
+                xutils.strptime(tsdir, xutils.TIMESTAMP_FORMAT)
         if delta > timedelta(days=30):
             passed_month = True
     else:

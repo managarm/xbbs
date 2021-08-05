@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 import gevent.monkey; gevent.monkey.patch_all()  # noqa isort:skip
 import contextlib
-import datetime
 import json
 import operator
 import os
@@ -14,6 +13,7 @@ import socket
 import subprocess
 import tempfile
 import time
+from datetime import datetime, timezone
 from enum import Enum
 from hashlib import blake2b
 
@@ -216,7 +216,7 @@ class Build:
     state = attr.ib(default=msgs.BuildState.SCHEDULED)
     jobs = attr.ib(factory=dict)
     success = attr.ib(default=True)
-    ts = attr.ib(factory=datetime.datetime.now)
+    ts = attr.ib(factory=lambda: datetime.now(timezone.utc))
 
     tool_set = attr.ib(factory=dict)
     file_set = attr.ib(factory=dict)

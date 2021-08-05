@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 import argparse
 import contextlib
+import datetime
 import errno
 import fcntl
 import hashlib
@@ -139,3 +140,10 @@ def merge_tree_into(src, dst):
 @V.accepts(x=["string"])
 def list_to_set(x):
     return set(x)
+
+
+def strptime(*args, **kwargs):
+    "Parses a timestamp as UTC."
+    # unaware datetime objects are dumb
+    dt = datetime.datetime.strptime(*args, **kwargs)
+    return dt.replace(tzinfo=datetime.timezone.utc)

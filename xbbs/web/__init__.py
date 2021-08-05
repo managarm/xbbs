@@ -6,7 +6,7 @@ import collections
 import json
 import os
 import os.path as path
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import wraps
 
 import flask.json
@@ -158,7 +158,7 @@ def overview():
             status.projects[project_name].update(rolling_pkgs=True)
         for build in _listdir:
             try:
-                build_ts = datetime.strptime(build, xutils.TIMESTAMP_FORMAT)
+                build_ts = xutils.strptime(build, xutils.TIMESTAMP_FORMAT)
             except ValueError:
                 continue
             build_info = load_build(status, project_name, build)
@@ -311,7 +311,11 @@ def humanize_size(x):
 def parse_and_humanize_iso(iso, *args, **kwargs):
     try:
         if isinstance(iso, str):
-            iso = datetime.strptime(iso, xutils.TIMESTAMP_FORMAT)
+            iso = xutils.strptime(iso, xutils.TIMESTAMP_FORMAT)
+
+        if iso.tzinfo is not None and iso.tzinfo.utcoffset(iso) is not None:
+            # this doesn't make a naive object without the replace
+            iso = iso.astimezone().replace(tzinfo=None)
         return humanize.naturaltime(iso, *args, **kwargs)
     except ValueError:
         raise NotFound()
@@ -319,7 +323,8 @@ def parse_and_humanize_iso(iso, *args, **kwargs):
 
 @app.template_filter("formatts")
 def format_timestamp(x):
-    return datetime.utcfromtimestamp(x).strftime("%d-%b-%Y %H:%m")
+    dt = datetime.fromtimestamp(x, tz=timezone.utc).strftime("%d-%b-%Y %H:%m")
+    return dt
 
 
 def find_latest_build(status, proj, **kwargs):
@@ -337,7 +342,7 @@ def find_latest_build(status, proj, **kwargs):
     latest_build_ts = None
     for x in _listdir:
         try:
-            dt = datetime.strptime(x, xutils.TIMESTAMP_FORMAT)
+            dt = xutils.strptime(x, xutils.TIMESTAMP_FORMAT)
         except ValueError:
             continue
         bi = load_build(status, proj, x, **kwargs)
@@ -449,7 +454,7 @@ def show_build_list_json(proj):
         _listdir = os.listdir(safe_join(projbase, proj))
         for build in _listdir:
             try:
-                datetime.strptime(build, xutils.TIMESTAMP_FORMAT)
+                xutils.strptime(build, xutils.TIMESTAMP_FORMAT)
             except ValueError:
                 continue
             loaded_build = load_build(status, proj, build,
