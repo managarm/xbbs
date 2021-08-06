@@ -288,7 +288,10 @@ class Build:
         files = self.file_set
         for job, info in graph.items():
             # TODO(arsen): circ dep detection (low prio: handled in xbstrap)
-            job_val = Job(unstable=info["unstable"])
+            job_val = Job(
+                unstable=info["unstable"],
+                capabilities=info["capabilities"]
+            )
             for x in info["needed"]["tools"]:
                 name = x["name"]
                 if name not in tools:
@@ -974,6 +977,7 @@ def job_handling_coroutine(inst, rid, request):
         if not caps.issubset(request.capabilities):
             # TODO(arsen): prevent aggressive spinning when there's a single
             # unfit worker
+            gevent.sleep(1)
             inst.outgoing_job_queue.put((caps, job))
             continue
 
