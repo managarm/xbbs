@@ -785,6 +785,7 @@ def update_tool_registry(artifact_file, artifact, toolvers=None):
     with tempfile.NamedTemporaryFile(prefix=".", dir=repo, delete=False,
                                      mode="w+") as f:
         json.dump(versions, f, indent=4)
+        os.chmod(f.name, 0o644)  # mkstemp doesn't use umask
         os.rename(f.name, repodata)
 
 
