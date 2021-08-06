@@ -1,8 +1,5 @@
 xbbs.web
 ========
-``xbbs.web`` was written to work with gevent-powered gunicorn, and uses
-``zmq.green`` APIs.
-
 ``xbbs.web`` takes settings using env variables:
 
 - ``XBBS_COORDINATOR_ENDPOINT``: the endpoint on which the xbbs coordinator is
@@ -21,4 +18,4 @@ An example command line for gunicorn:
     XBBS_USE_X_SENDFILE=true \
     XBBS_PROJECT_BASE=/var/xbbs/projects \
     XBBS_COORDINATOR_ENDPOINT=tcp://localhost:1600 \
-    gunicorn -k gevent -b 127.0.0.1:8080 xbbs.web:app
+    gunicorn -b 127.0.0.1:8080 xbbs.web:app

@@ -1,7 +1,4 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-import gevent.monkey # noqa isort:skip
-if not gevent.monkey.is_module_patched("socket"): # noqa isort:skip
-    gevent.monkey.patch_all() # noqa isort:skip
 import collections
 import json
 import os
@@ -12,7 +9,7 @@ from functools import wraps
 import flask.json
 import humanize
 import msgpack
-import zmq.green as zmq
+import zmq
 from flask import (Flask, jsonify, make_response, render_template, request,
                    safe_join, send_from_directory, url_for)
 from werkzeug.exceptions import NotAcceptable, NotFound, ServiceUnavailable
@@ -364,9 +361,8 @@ def render_pkgs_for_builds(status, proj, ts, build_info):
     if not path.exists(ridx):
         # TODO(arsen): tell the user there's no repo (yet)
         raise NotFound()
-    # gone over line limit
-    _tp = gevent.get_hub().threadpool
-    pkg_idx = _tp.spawn(xutils.read_xbps_repodata, ridx).get()
+
+    pkg_idx = xutils.read_xbps_repodata(ridx)
     return render_template("packages.html",
                            load=status.load,
                            host=status.hostname,
