@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 import gevent.monkey; gevent.monkey.patch_all()  # noqa isort:skip
 import contextlib
+import itertools
 import json
 import operator
 import os
 import os.path as path
+import pathlib
 import plistlib
 import re
 import shutil
@@ -38,6 +40,11 @@ def check_call_logged(cmd, **kwargs):
     if "input" in _kwargs:
         del _kwargs["input"]
     log.info("running command {} (params {})", cmd, _kwargs)
+    if "env_extra" in kwargs:
+        env = os.environ.copy()
+        env.update(kwargs["env_extra"])
+        del kwargs["env_extra"]
+        kwargs.update(env=env)
     return subprocess.check_call(cmd, **kwargs)
 
 
@@ -95,7 +102,7 @@ with V.parsing(required_properties=True, additional_properties=None):
     ARTIFACT_VALIDATOR = V.parse({
         "name": "string",
         "version": "string",
-        "?architecture": "string",  # XXX: currently unused
+        "architecture": "string",
     })
     JOB_REGEX = re.compile(r"^[a-z]+:.*$")
     GRAPH_VALIDATOR = V.parse(V.Mapping(JOB_REGEX, {
@@ -171,7 +178,7 @@ class Artifact:
     kind = attr.ib()
     name = attr.ib()
     version = attr.ib()
-    architecture = attr.ib(default="x86_64")  # XXX: unused, currently
+    architecture = attr.ib()
     received = attr.ib(default=False, eq=False, order=False)
     failed = attr.ib(default=False, eq=False, order=False)
 
@@ -286,36 +293,48 @@ class Build:
         tools = self.tool_set
         pkgs = self.pkg_set
         files = self.file_set
+        arch_set = set()
         for job, info in graph.items():
             # TODO(arsen): circ dep detection (low prio: handled in xbstrap)
             job_val = Job(
                 unstable=info["unstable"],
                 capabilities=info["capabilities"]
             )
-            for x in info["needed"]["tools"]:
-                name = x["name"]
-                if name not in tools:
-                    tools[name] = Artifact(Artifact.Kind.TOOL, **x)
-                job_val.deps.append(tools[name])
-            for x in info["needed"]["pkgs"]:
-                name = x["name"]
-                if name not in pkgs:
-                    pkgs[name] = Artifact(Artifact.Kind.PACKAGE, **x)
-                job_val.deps.append(pkgs[name])
 
+            def _handle_artifact(kind, reqset, x):
+                name = x["name"]
+                aset = {
+                    Artifact.Kind.TOOL: tools,
+                    Artifact.Kind.PACKAGE: pkgs,
+                    Artifact.Kind.FILE: files,
+                }[kind]
+                if name not in aset:
+                    aset[name] = Artifact(kind, **x)
+                reqset.append(aset[name])
+
+                ta = aset[name].architecture
+                if ta == "noarch":
+                    return  # dealt with later
+
+                if bool(arch_set) and ta not in arch_set:
+                    raise RuntimeError("multiarch builds unsupported")
+
+                arch_set.add(ta)
+
+            for x in info["needed"]["tools"]:
+                _handle_artifact(Artifact.Kind.TOOL, job_val.deps, x)
+            for x in info["needed"]["pkgs"]:
+                _handle_artifact(Artifact.Kind.PACKAGE, job_val.deps, x)
             for x in info["products"]["tools"]:
-                name = x["name"]
-                if name not in tools:
-                    tools[name] = Artifact(Artifact.Kind.TOOL, **x)
-                job_val.products.append(tools[name])
+                _handle_artifact(Artifact.Kind.TOOL, job_val.products, x)
             for x in info["products"]["pkgs"]:
-                name = x["name"]
-                if name not in pkgs:
-                    pkgs[name] = Artifact(Artifact.Kind.PACKAGE, **x)
-                job_val.products.append(pkgs[name])
+                _handle_artifact(Artifact.Kind.PACKAGE, job_val.products, x)
+
             for fname in info["products"]["files"]:
                 artifact = Artifact(Artifact.Kind.FILE,
-                                    name=fname, version=None)
+                                    architecture=None,
+                                    name=fname,
+                                    version=None)
                 job_val.products.append(artifact)
                 files[fname] = artifact
 
@@ -326,6 +345,11 @@ class Build:
                     prod.failed = False
 
             self.jobs[job] = job_val
+
+        for x in itertools.chain(tools.values(), pkgs.values()):
+            if x.architecture == "noarch":
+                # TODO(arsen): decide whether to use list or set globally
+                x.architecture = list(arch_set)
 
         self.store_status()
 
@@ -371,13 +395,23 @@ def solve_project(inst, projinfo):
             if not satisfied:
                 continue
 
-            needed_tools = {x.name: x.version for x in job.deps
+            def _produce_artifact_obj(x):
+                return {
+                    "architecture": x.architecture,
+                    "version": x.version
+                }
+
+            needed_tools = {x.name: _produce_artifact_obj(x)
+                            for x in job.deps
                             if x.kind is Artifact.Kind.TOOL}
-            needed_pkgs = {x.name: x.version for x in job.deps
+            needed_pkgs = {x.name: _produce_artifact_obj(x)
+                           for x in job.deps
                            if x.kind is Artifact.Kind.PACKAGE}
-            prod_tools = {x.name: x.version for x in job.products
+            prod_tools = {x.name: _produce_artifact_obj(x)
+                          for x in job.products
                           if x.kind is Artifact.Kind.TOOL}
-            prod_pkgs = {x.name: x.version for x in job.products
+            prod_pkgs = {x.name: _produce_artifact_obj(x)
+                         for x in job.products
                          if x.kind is Artifact.Kind.PACKAGE}
             prod_files = [x.name for x in job.products
                           if x.kind is Artifact.Kind.FILE]
@@ -432,25 +466,40 @@ def solve_project(inst, projinfo):
 # xterm-{256,}color does, since it is widely adopted and assumed.
 
 
-def _load_version_information(project):
-    pkgs = {}
-    tools = {}
+def load_package_registries(pkg_repo_dir):
     # TODO: multiarch
-    rdf = path.join(project.base, "rolling/package_repo/x86_64-repodata")
-    tool_repo = path.join(project.base, "rolling/tool_repo")
+    pkgs = {}
+    repodata_files = []
     try:
-        rd = xutils.read_xbps_repodata(rdf)
-        for pkg in rd:
-            pkgs[pkg] = rd[pkg]["pkgver"].rpartition("-")[2]
-    except FileNotFoundError as e:
-        log.debug("no verinfo, cannot open repodata: {}", e)
+        repodata_files = [x for x in pkg_repo_dir.iterdir()
+                          if str(x).endswith("-repodata")]
+    except FileNotFoundError:
         pass
+
+    # arches = [x.name[:-len("-repodata")] for x in repodata_files]
+    log.debug("repodata found: {}", repodata_files)
+    if len(repodata_files) > 1:
+        raise RuntimeError("multiarch builds unsupported")
+    if len(repodata_files) == 0:
+        return {}
+
+    rdf = repodata_files[0]
+    rd = xutils.read_xbps_repodata(rdf)  # TODO(arsen): TOCTOU with iterdir
+    for pkg in rd:
+        pkgs[pkg] = rd[pkg]["pkgver"].rpartition("-")[2]
+
+    return pkgs
+
+
+def _load_version_information(project):
+    tool_repo = path.join(project.base, "rolling/tool_repo")
+    pkg_repo_dir = pathlib.Path(project.base) / "rolling/package_repo/"
+
+    pkgs = load_package_registries(pkg_repo_dir)
 
     with project.tool_repo_lock:
         tools = load_tool_registry(tool_repo)
 
-    # TODO: discover tool versions. for now, it is ignored by xbstrap and
-    # always rebuilt anyways.
     return {"pkgs": pkgs, "tools": tools}
 
 
@@ -578,13 +627,25 @@ def run_project(inst, project, delay, incremental):
                 for x in build.pkg_set.values():
                     if not x.received:
                         continue
-                    fname = f"{x.name}-{x.version}.x86_64.xbps"
+                    arch = x.architecture
+                    filearch = arch
+                    if isinstance(arch, list):
+                        assert len(arch) == 1, \
+                               "multiarch support missing, yet demanded?"
+                        arch = arch[0]
+                        filearch = "noarch"
+
+                    fname = f"{x.name}-{x.version}.{filearch}.xbps"
                     target_file = path.join(package_repo, fname)
                     # does the user deserve an error if they delete a package?
+                    env_extra = {
+                        "XBPS_ARCH": arch
+                    }
                     shutil.copy2(path.join(rpkg_repo, fname),
                                  target_file, follow_symlinks=False)
-                    check_call_logged(["xbps-rindex", "-fa", target_file])
-                    maybe_sign_artifact(inst, target_file, project)
+                    check_call_logged(["xbps-rindex", "-fa", target_file],
+                                      env_extra=env_extra)
+                    maybe_sign_artifact(inst, target_file, project, arch)
                 for x in build.tool_set.values():
                     if not x.received:
                         continue
@@ -732,7 +793,7 @@ def cmd_chunk(inst, value):
 cmd_chunk.table = {}
 
 
-def maybe_sign_artifact(inst, artifact, project):
+def maybe_sign_artifact(inst, artifact, project, arch):
     if not project.fingerprint:
         return
     base = project.base
@@ -743,14 +804,19 @@ def maybe_sign_artifact(inst, artifact, project):
     with open(pubkey, "rb") as pkf:
         pkeydata = PUBKEY_VALIDATOR.validate(plistlib.load(pkf))
     signed_by = pkeydata["signature-by"]
+    env_extra = {
+        "XBPS_ARCH": arch
+    }
     check_call_logged(["xbps-rindex",
                        "--signedby", signed_by,
                        "--privkey", privkey,
-                       "-s", path.dirname(artifact)])
+                       "-s", path.dirname(artifact)],
+                      env_extra=env_extra)
     check_call_logged(["xbps-rindex",
                        "--signedby", signed_by,
                        "--privkey", privkey,
-                       "-S", artifact])
+                       "-S", artifact],
+                      env_extra=env_extra)
     # XXX: a sanity check here? extract the key from repodata and compare with
     # "{project.fingerprint}.plist"s key and signer
 
@@ -836,18 +902,30 @@ def cmd_artifact(inst, value):
         os.close(fd)
 
         try:
+            arch = artifact.architecture
+            if isinstance(arch, list):
+                assert len(arch) == 1, \
+                       "multiarch support missing, yet demanded?"
+                arch = arch[0]
+
             artifact_file = path.join(repo, message.filename)
             artifact_roll = path.join(repo_roll, message.filename)
             shutil.move(target, artifact_file)
             if artifact.kind == Artifact.Kind.PACKAGE:
-                check_call_logged(["xbps-rindex", "-fa", artifact_file])
+                env_extra = {
+                    "XBPS_ARCH": arch
+                }
+                check_call_logged(["xbps-rindex", "-fa", artifact_file],
+                                  env_extra=env_extra)
                 if not path.exists(artifact_roll):
                     shutil.copy2(artifact_file, artifact_roll)
                     # we don't -f this one, because we want the most up-to-date
                     # here
-                    check_call_logged(["xbps-rindex", "-a", artifact_roll])
+                    check_call_logged(["xbps-rindex", "-a", artifact_roll],
+                                      env_extra=env_extra)
                     # clean up rolling repo
-                    check_call_logged(["xbps-rindex", "-r", repo_roll])
+                    check_call_logged(["xbps-rindex", "-r", repo_roll],
+                                      env_extra=env_extra)
                 else:
                     with open(artifact_file, "rb") as f:
                         h1 = xutils.hash_file(f)
@@ -856,8 +934,8 @@ def cmd_artifact(inst, value):
                     if h1 != h2:
                         log.error("{} hash changed, but pkgver didn't!",
                                   artifact)
-                maybe_sign_artifact(inst, artifact_file, proj)
-                maybe_sign_artifact(inst, artifact_roll, proj)
+                maybe_sign_artifact(inst, artifact_file, proj, arch)
+                maybe_sign_artifact(inst, artifact_roll, proj, arch)
             elif artifact.kind == Artifact.Kind.TOOL:
                 with proj.tool_repo_lock:
                     toolvers = load_tool_registry(path.dirname(artifact_roll))
@@ -888,6 +966,8 @@ def cmd_artifact(inst, value):
             run.artifact_received.set()
         raise
     finally:
+        if run and not run.state.terminating:
+            run.store_status()
         try:
             if target:
                 os.unlink(target)

@@ -71,7 +71,9 @@ def upload(inst, locked_sock, job, kind, name, fpath):
                 msg = msgs.ArtifactMessage(job.project, kind, name, True,
                                            path.basename(fpath), last_hash)
                 sock.send_multipart([b"artifact", msg.pack()])
+        log.debug("successfully uploaded {} {} for {}", kind, name, job)
     except FileNotFoundError:
+        log.exception("failed to open {} {} for {}", kind, name, job)
         send_fail(inst, locked_sock, job, kind, name)
 
 
@@ -118,11 +120,21 @@ def run_job(inst, sock, job, logfd):
 
     def runcmd(cmd, **kwargs):
         log.info("running command {} (params {})", cmd, kwargs)
+        if "extra_env" in kwargs:
+            env = os.environ.copy()
+            env.update(kwargs["extra_env"])
+            del kwargs["extra_env"]
+            kwargs["env"] = env
         return check_call(cmd, **kwargs,
                           stdout=logfd, stderr=logfd, stdin=subprocess.DEVNULL)
 
     def popencmd(cmd, **kwargs):
         log.info("running command {} (params {})", cmd, kwargs)
+        if "extra_env" in kwargs:
+            env = os.environ.copy()
+            env.update(kwargs["extra_env"])
+            del kwargs["extra_env"]
+            kwargs["env"] = env
         return Popen(cmd, **kwargs,
                      stdout=logfd, stderr=logfd, stdin=subprocess.DEVNULL)
     try:
@@ -157,11 +169,24 @@ def run_job(inst, sock, job, logfd):
                 keyfile = path.join(keysdir, f"{fingerprint}.plist")
                 with open(keyfile, "wb") as pkf:
                     pkf.write(pubkey)
-        if len(job.needed_pkgs):
+
+        build_arch = None
+        for pkg, pinfo in job.needed_pkgs.items():
+            arch = pinfo["architecture"]
+            if isinstance(arch, set):
+                (arch,) = arch
+            build_arch = build_arch or arch
+            if arch != build_arch:
+                raise RuntimeError("multiarch sysroots are not possible")
+
+        if build_arch:  # not ran if there's no packages to install
             runcmd(["xbps-install", "-Uy",
                     "-R", process_repo_url(job.pkg_repo),
                     "-r", sysroot,
-                    "-SM", "--"] + list(job.needed_pkgs))
+                    "-v", "--debug",
+                    "-SM", "--"] + list(job.needed_pkgs),
+                   extra_env={"XBPS_ARCH": build_arch})
+
         for x in job.needed_tools:
             tool_dir = path.join(tools_dir, x)
             os.mkdir(tool_dir)
@@ -216,8 +241,12 @@ def run_job(inst, sock, job, logfd):
                     fn = path.join(tools_dir, f"{subject}.tar.gz")
                     _send_and_store(notif, "tool", fn, job.prod_tools)
                 elif action == "pack":
-                    ver = job.prod_pkgs[subject]
-                    fn = path.join(repo_dir, f"{subject}-{ver}.x86_64.xbps")
+                    af_info = job.prod_pkgs[subject]
+                    ver = af_info["version"]
+                    arch = af_info["architecture"]
+                    if isinstance(arch, set):
+                        arch = "noarch"
+                    fn = path.join(repo_dir, f"{subject}-{ver}.{arch}.xbps")
                     _send_and_store(notif, "package", fn, job.prod_pkgs)
                 elif len(artifact_files) == 0:
                     continue

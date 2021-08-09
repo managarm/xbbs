@@ -3,6 +3,7 @@ import collections
 import json
 import os
 import os.path as path
+import pathlib
 from datetime import datetime, timezone
 from functools import wraps
 
@@ -357,12 +358,16 @@ def find_latest_build(status, proj, **kwargs):
 
 
 def render_pkgs_for_builds(status, proj, ts, build_info):
-    ridx = path.join(projbase, proj, ts, "package_repo", "x86_64-repodata")
-    if not path.exists(ridx):
-        # TODO(arsen): tell the user there's no repo (yet)
+    # TODO: multiarch
+    pkg_repo_dir = pathlib.Path(projbase) / proj / "rolling/package_repo/"
+    repodata_files = [x for x in pkg_repo_dir.iterdir()
+                      if str(x).endswith("-repodata")]
+    if len(repodata_files) > 1:
+        raise RuntimeError("multiarch builds unsupported")
+    if len(repodata_files) == 0:
         raise NotFound()
 
-    pkg_idx = xutils.read_xbps_repodata(ridx)
+    pkg_idx = xutils.read_xbps_repodata(repodata_files[0])
     return render_template("packages.html",
                            load=status.load,
                            host=status.hostname,

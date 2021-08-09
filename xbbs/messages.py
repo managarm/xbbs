@@ -129,7 +129,10 @@ class WorkMessage(BaseMessage):
     })
 
 
-PKG_TOOL_VALIDATOR = V.parse(V.Mapping("string", "string"))
+PKG_TOOL_VALIDATOR = V.parse(V.Mapping("string", {
+    "version": "string",
+    "architecture": V.AnyOf("string", V.AdaptBy(xutils.list_to_set)),
+}))
 
 
 @attr.s
@@ -198,6 +201,7 @@ class ArtifactMessage(BaseMessage):
         "project": "string",
         "artifact_type": V.Enum({"tool", "package", "file"}),
         "artifact": "string",
+        # TODO(arsen): architecture
         "success": "boolean",
         "?filename": "?string",
         "?last_hash": V.Nullable(_is_blake2b_digest)
