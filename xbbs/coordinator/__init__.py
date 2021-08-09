@@ -1010,9 +1010,13 @@ def cmd_job(inst, value):
                 else msgs.JobStatus.FAILED
     job.exit_code = message.exit_code
     job.run_time = message.run_time
-    proj.current.artifact_received.set()
     with open(proj.current.info(message.job), "w") as infofile:
         json.dump(message._dictvalue, infofile, indent=4)
+
+    if proj.current and not proj.current.state.terminating:
+        proj.current.store_status()
+
+    proj.current.artifact_received.set()
 
 
 def intake_loop(inst):
