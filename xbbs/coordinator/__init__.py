@@ -148,7 +148,7 @@ class Xbbs:
     projects = attr.ib(factory=dict)
     project_greenlets = attr.ib(factory=list)
     zmq = attr.ib(default=zmq.Context.instance())
-    outgoing_job_queue = attr.ib(factory=gevent.queue.Queue)
+    outgoing_job_queue = attr.ib(factory=lambda: gevent.queue.Queue(1))
 
     @classmethod
     def create(cls, cfg):
@@ -411,9 +411,8 @@ def solve_project(inst, projinfo):
                 distfile_path=projinfo.distfile_path,
             )
             log.debug("sending job request {}", jobreq)
+            build.store_status()
             inst.outgoing_job_queue.put((job.capabilities, jobreq.pack()))
-
-        build.store_status()
 
         # TODO(arsen): handle the edge case in which workers are dead
         if not some_waiting:
