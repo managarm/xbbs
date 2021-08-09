@@ -1087,8 +1087,11 @@ def job_pull_loop(inst):
 
 
 def dump_projects(xbbs):
+    log.info("force flushing all running build statuses")
     running = 0
     for name, proj in xbbs.projects.items():
+        if proj.current and not proj.current.state.terminating:
+            proj.current.store_status()
         if not isinstance(proj.current, Build):
             continue
         running += 1
