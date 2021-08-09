@@ -21,6 +21,7 @@ import toml
 import valideer as V
 import yaml
 import zmq.green as zmq
+import logbook.concurrency
 from logbook import Logger, StderrHandler, StreamHandler
 
 import xbbs.messages as msgs
@@ -287,13 +288,15 @@ def process_job_msg(inst, msg):
         try:
             with StreamHandler(xutils.open_coop(logwr, mode="w"),
                                format_string=LOG_FORMAT,
-                               bubble=True):
+                               bubble=True).greenletbound():
                 run_job(inst, output, job, logwr)
         finally:
             logcoll.join()
 
 
 def main():
+    logbook.concurrency.enable_gevent()
+
     global log
     StderrHandler().push_application()
     log = Logger('xbbs.worker')
