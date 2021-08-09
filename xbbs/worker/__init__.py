@@ -255,7 +255,8 @@ def run_job(inst, sock, job, logfd):
 
 
 def collect_logs(job, output, fd):
-    with xutils.open_coop(fd, "rt", buffering=1) as pipe:
+    with xutils.open_coop(fd, "rt", buffering=1, encoding="utf-8",
+                          errors="backslashreplace") as pipe:
         for line in pipe:
             with output as sock:
                 msg = msgs.LogMessage(

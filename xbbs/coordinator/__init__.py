@@ -907,7 +907,8 @@ def cmd_log(inst, value):
 
     # XXX: this is not cooperative, and should be okay because
     # it's a small amount of data
-    with open(proj.current.log(message.job), mode="a") as logfile:
+    with open(proj.current.log(message.job), mode="a",
+              encoding="utf-8", errors="backslashreplace") as logfile:
         logfile.write(message.line)
 
 
