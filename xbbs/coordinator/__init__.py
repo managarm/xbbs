@@ -24,6 +24,7 @@ import gevent
 import gevent.event
 import gevent.queue
 import gevent.time
+import gevent.util
 import msgpack as msgpk
 import toml
 import valideer as V
@@ -1099,6 +1100,7 @@ def dump_projects(xbbs):
     log.info("running {} project(s)", running)
 
     log.info("outgoing qsize: {}", xbbs.outgoing_job_queue.qsize())
+    log.info("gevent run_info: {}", "\n".join(gevent.util.format_run_info()))
     try:
         x = xbbs.outgoing_job_queue.peek_nowait()
         log.info("last item on queue: {}", x)
