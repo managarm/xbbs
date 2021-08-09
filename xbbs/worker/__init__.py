@@ -331,7 +331,7 @@ def main():
                     process_job_msg(inst, msg)
                 except KeyboardInterrupt:
                     log.exception("interrupted")
-                    break
+                    return
                 except Exception as e:
                     log.exception("job error", e)
 
