@@ -16,12 +16,12 @@ from urllib.parse import urlparse
 import attr
 import gevent
 import gevent.fileobject as gfobj
+import logbook.concurrency
 import requests
 import toml
 import valideer as V
 import yaml
 import zmq.green as zmq
-import logbook.concurrency
 from logbook import Logger, StderrHandler, StreamHandler
 
 import xbbs.messages as msgs
