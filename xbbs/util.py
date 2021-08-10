@@ -15,6 +15,7 @@ import tarfile
 import attr
 import gevent.fileobject as gfobj
 import gevent.lock as glock
+import gevent.pool
 import valideer as V
 import zstandard
 
@@ -147,3 +148,12 @@ def strptime(*args, **kwargs):
     # unaware datetime objects are dumb
     dt = datetime.datetime.strptime(*args, **kwargs)
     return dt.replace(tzinfo=datetime.timezone.utc)
+
+
+@contextlib.contextmanager
+def autojoin_group(groupclass=gevent.pool.Group, *args, **kwargs):
+    # group.close() looks commented out, so I can't prevent further greenlets
+    # being spawned. this should be fine in my use case, though
+    group = groupclass(*args, **kwargs)
+    yield group
+    group.join()

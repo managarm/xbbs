@@ -105,7 +105,7 @@ def process_repo_url(url):
 
 
 # TODO(arsen): all output needs to be redirected to a pty
-def run_job(inst, sock, job, logfd):
+def run_job(inst, gletgroup, sock, job, logfd):
     start = time.monotonic()
     code = -1.0
     log.info("running job {}", job)
@@ -116,7 +116,6 @@ def run_job(inst, sock, job, logfd):
     repo_dir = path.join(build_dir, "xbps-repo")
     distfiles = path.join(source_dir, job.distfile_path)
     read_end = None
-    uploads = []
 
     def runcmd(cmd, **kwargs):
         log.info("running command {} (params {})", cmd, kwargs)
@@ -226,9 +225,7 @@ def run_job(inst, sock, job, logfd):
                     repglet = partial(send_fail,
                                       inst, sock, job, kind, entry_name)
 
-                task = gevent.spawn(_run_and_pop, repglet, prod_set,
-                                    entry_name)
-                uploads.append(task)
+                gletgroup.spawn(_run_and_pop, repglet, prod_set, entry_name)
 
             for notif in parse_yaml_stream(progress):
                 # TODO(arsen): validate
@@ -261,7 +258,6 @@ def run_job(inst, sock, job, logfd):
     except Exception:
         log.exception("job {} failed due to an exception", job)
     finally:
-        gevent.joinall(uploads)
         for x in (build_dir, source_dir):
             try:
                 shutil.rmtree(x)
@@ -308,17 +304,18 @@ def process_job_msg(inst, msg):
     job = msgs.JobMessage.unpack(msg)
     inst.current_project = job.project
     inst.current_job = job.job
-    with inst.zmq.socket(zmq.PUSH) as unlocked_out:
+    with inst.zmq.socket(zmq.PUSH) as unlocked_out, \
+         xutils.autojoin_group() as gletgroup:
         unlocked_out.set(zmq.LINGER, -1)
         unlocked_out.connect(job.output)
         output = xutils.Locked(unlocked_out)
         (logrd, logwr) = os.pipe()
-        logcoll = gevent.spawn(collect_logs, job, output, logrd)
+        logcoll = gletgroup.spawn(collect_logs, job, output, logrd)
         try:
             with StreamHandler(xutils.open_coop(logwr, mode="w"),
                                format_string=LOG_FORMAT,
-                               bubble=True).greenletbound():
-                run_job(inst, output, job, logwr)
+                               bubble=True).threadbound():
+                run_job(inst, gletgroup, output, job, logwr)
         finally:
             logcoll.join()
 
