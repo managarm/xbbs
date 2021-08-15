@@ -105,7 +105,7 @@ def process_repo_url(url):
 
 
 # TODO(arsen): all output needs to be redirected to a pty
-def run_job(inst, gletgroup, sock, job, logfd):
+def run_job(inst, sock, job, logfd):
     start = time.monotonic()
     code = -1.0
     log.info("running job {}", job)
@@ -182,6 +182,7 @@ def run_job(inst, gletgroup, sock, job, logfd):
             runcmd(["xbps-install", "-Uy",
                     "-R", process_repo_url(job.pkg_repo),
                     "-r", sysroot,
+                    "-v", "--debug",
                     "-SM", "--"] + list(job.needed_pkgs),
                    extra_env={"XBPS_ARCH": build_arch})
 
@@ -197,7 +198,8 @@ def run_job(inst, gletgroup, sock, job, logfd):
         with popencmd(["xbstrap-pipeline", "run-job", "--keep-going",
                        "--progress-file", f"fd:{write_end}", job.job],
                       cwd=build_dir, pass_fds=(write_end,)) as runner, \
-             xutils.open_coop(read_end, mode="rt", buffering=1) as progress:
+             xutils.open_coop(read_end, mode="rt", buffering=1) as progress, \
+             xutils.autojoin_group() as upload_tasks:
             # make sure that the subprocess being done makes this pipe EOF
             os.close(write_end)
             del write_end
@@ -224,7 +226,7 @@ def run_job(inst, gletgroup, sock, job, logfd):
                     repglet = partial(send_fail,
                                       inst, sock, job, kind, entry_name)
 
-                gletgroup.spawn(_run_and_pop, repglet, prod_set, entry_name)
+                upload_tasks.spawn(_run_and_pop, repglet, prod_set, entry_name)
 
             for notif in parse_yaml_stream(progress):
                 # TODO(arsen): validate
@@ -262,13 +264,6 @@ def run_job(inst, gletgroup, sock, job, logfd):
                 shutil.rmtree(x)
             except FileNotFoundError:
                 pass
-        with sock as us:
-            us.send_multipart([b"job", msgs.JobCompletionMessage(
-                project=job.project,
-                job=job.job,
-                exit_code=code,
-                run_time=time.monotonic() - start
-            ).pack()])
         # these do not need to be async since there's no pipe waiting
         # if some artifact wasn't done, that's an error
         for x in job.prod_pkgs:
@@ -277,6 +272,14 @@ def run_job(inst, gletgroup, sock, job, logfd):
             send_fail(inst, sock, job, "tool", x)
         for x in job.prod_files:
             send_fail(inst, sock, job, "file", x)
+
+        with sock as us:
+            us.send_multipart([b"job", msgs.JobCompletionMessage(
+                project=job.project,
+                job=job.job,
+                exit_code=code,
+                run_time=time.monotonic() - start
+            ).pack()])
 
 
 def collect_logs(job, output, fd):
@@ -314,7 +317,7 @@ def process_job_msg(inst, msg):
             with StreamHandler(xutils.open_coop(logwr, mode="w"),
                                format_string=LOG_FORMAT,
                                bubble=True).threadbound():
-                run_job(inst, gletgroup, output, job, logwr)
+                run_job(inst, output, job, logwr)
         finally:
             logcoll.join()
 
