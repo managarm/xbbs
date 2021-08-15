@@ -27,6 +27,18 @@ incremental = true
 # distfile_path = "xbbs/"
 mirror_root = "http://localhost/"
 
+[projects.managarm_aarch64]
+git = "https://github.com/managarm/bootstrap-managarm.git"
+description = "Pragmatic microkernel-based OS with fully asynchronous I/O. Now on an ARM near you!"
+classes = ["managarm"]
+# external access to tools and packages repo, to be used by worker (through
+# xbps-install and just a simple tarfile download)
+packages = "file:///home/arsen/xbci/site-local/projects/managarm_aarch64/current/package_repo"
+tools = "file:///home/arsen/xbci/site-local/projects/managarm_aarch64/current/tool_repo"
+fingerprint = "99:12:e7:7d:3c:e1:7d:53:9b:4e:23:65:b6:6a:38:81"
+incremental = true
+distfile_path = "xbbs/aarch64"
+
 [projects.mlibc]
 git = "/home/arsen/xbci/site-local/mlibc-repo"
 description = "managarm takes too long to build"
@@ -36,3 +48,16 @@ classes = ["managarm"]
 packages = "file:///home/arsen/xbci/site-local/projects/mlibc/current/package_repo"
 tools = "file:///home/arsen/xbci/site-local/projects/mlibc/current/tool_repo"
 fingerprint = "99:12:e7:7d:3c:e1:7d:53:9b:4e:23:65:b6:6a:38:81"
+
+[projects.vinix]
+git = "/home/arsen/xbci/site-local/vinix-repo"
+description = "V-based operating system"
+classes = ["vinix"]
+# external access to tools and packages repo, to be used by worker (through
+# xbps-install and just a simple tarfile download)
+packages = "file:///home/arsen/xbci/site-local/projects/vinix/current/package_repo"
+tools = "file:///home/arsen/xbci/site-local/projects/vinix/current/tool_repo"
+fingerprint = "99:12:e7:7d:3c:e1:7d:53:9b:4e:23:65:b6:6a:38:81"
+incremental = true
+# distfile_path = "xbbs/"
+default_branch = "main"

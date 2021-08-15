@@ -184,7 +184,6 @@ def run_job(inst, sock, job, logfd):
             runcmd(["xbps-install", "-Uy",
                     "-R", process_repo_url(job.pkg_repo),
                     "-r", sysroot,
-                    "-v", "--debug",
                     "-SM", "--"] + list(job.needed_pkgs),
                    extra_env={"XBPS_ARCH": build_arch})
 
