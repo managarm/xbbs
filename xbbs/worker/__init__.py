@@ -316,7 +316,8 @@ def process_job_msg(inst, msg):
         (logrd, logwr) = os.pipe()
         logcoll = gletgroup.spawn(collect_logs, job, output, logrd)
         try:
-            with StreamHandler(xutils.open_coop(logwr, mode="w"),
+            with xutils.open_coop(logwr, mode="w") as pipe_file, \
+                 StreamHandler(pipe_file,
                                format_string=LOG_FORMAT,
                                bubble=True).threadbound():
                 run_job(inst, output, job, logwr)
