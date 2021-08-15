@@ -4,6 +4,7 @@ import json
 import os
 import os.path as path
 import shutil
+import signal
 import socket
 import subprocess
 import tarfile
@@ -16,6 +17,7 @@ from urllib.parse import urlparse
 import attr
 import gevent
 import gevent.fileobject as gfobj
+import gevent.util
 import logbook.concurrency
 import requests
 import toml
@@ -337,6 +339,8 @@ def main():
     job_request = msgs.JobRequest(
         capabilities=cfg["capabilities"]
     ).pack()
+
+    gevent.signal_handler(signal.SIGUSR1, gevent.util.print_run_info)
 
     log.info(cfg)
     while True:
