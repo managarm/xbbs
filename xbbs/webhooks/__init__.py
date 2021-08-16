@@ -19,6 +19,14 @@ import xbbs.messages as msgs
 app = Flask(__name__)
 zctx = zmq.Context.instance()
 
+
+@V.accepts(x=V.AnyOf("string", ["string"]))
+def _list_wrap(x):
+    if isinstance(x, str):
+        return x
+    return [x]
+
+
 with V.parsing(required_properties=True,
                additional_properties=V.Object.REMOVE):
     CONFIG_VALIDATOR = V.parse({
@@ -26,7 +34,7 @@ with V.parsing(required_properties=True,
         "?coordinator_timeout": "integer",
         "?start_delay": "integer",
         "?github_secret": "string",
-        "?github": V.Mapping("string", "string")
+        "?github": V.Mapping("string", V.AdaptBy(_list_wrap))
     })
 
 XBBS_CFG_DIR = os.getenv("XBBS_CFG_DIR", "/etc/xbbs")
@@ -71,21 +79,22 @@ def github():
     except V.ValidationError:
         raise BadRequest()
 
-    project = github_mapping.get(data["repository"]["full_name"], None)
-    if not project:
+    projects = github_mapping.get(data["repository"]["full_name"], None)
+    if not projects:
         return "mapping not found", 404
 
     with zctx.socket(zmq.REQ) as conn:
         conn.set(zmq.LINGER, 0)
         conn.connect(coordinator)
-        conn.send_multipart([b"build", msgs.BuildMessage(
-            project=project,
-            delay=start_delay,
-            incremental=True
-        ).pack()])
-        if not conn.poll(cmd_timeout):
-            raise ServiceUnavailable()
-        (code, res) = conn.recv_multipart()
+        for x in projects:
+            conn.send_multipart([b"build", msgs.BuildMessage(
+                project=project,
+                delay=start_delay,
+                incremental=True
+            ).pack()])
+            if not conn.poll(cmd_timeout):
+                raise ServiceUnavailable()
+            (code, res) = conn.recv_multipart()
 
     if len(code) != 3:
         raise InternalServerError()
