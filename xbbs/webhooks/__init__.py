@@ -88,7 +88,7 @@ def github():
         conn.connect(coordinator)
         for x in projects:
             conn.send_multipart([b"build", msgs.BuildMessage(
-                project=project,
+                project=x,
                 delay=start_delay,
                 incremental=True
             ).pack()])
