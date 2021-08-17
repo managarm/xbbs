@@ -22,7 +22,7 @@ zctx = zmq.Context.instance()
 
 @V.accepts(x=V.AnyOf("string", ["string"]))
 def _list_wrap(x):
-    if isinstance(x, str):
+    if not isinstance(x, str):
         return x
     return [x]
 
