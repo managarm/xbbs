@@ -1060,10 +1060,11 @@ def job_handling_coroutine(inst, rid, request):
             return
 
         if not caps.issubset(request.capabilities):
-            # TODO(arsen): prevent aggressive spinning when there's a single
-            # unfit worker
-            gevent.sleep(1)
             inst.outgoing_job_queue.put((caps, job))
+
+            # The sleep here must happen after a queue put. If it does not,
+            # this thread will not yield until the next get causing a deadlock.
+            gevent.sleep(1)
             continue
 
         try:
