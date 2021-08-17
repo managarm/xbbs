@@ -12,7 +12,7 @@ import shutil
 import sys
 from datetime import datetime, timedelta, timezone
 
-import xbbs.utils as xutils
+import xbbs.util as xutils
 
 if len(sys.argv) > 1:
     os.chdir(sys.argv[1])
