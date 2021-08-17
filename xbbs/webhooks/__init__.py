@@ -102,4 +102,4 @@ def github():
     if code == 204:
         return "success"
     res = msgpack.loads(res)
-    return f"coordinator error: {code} {res}", 502
+    return f"coordinator error: {code} {res}", code
