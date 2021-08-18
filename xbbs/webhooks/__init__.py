@@ -1,7 +1,4 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-import gevent.monkey # noqa isort:skip
-if not gevent.monkey.is_module_patched("socket"): # noqa isort:skip
-    gevent.monkey.patch_all() # noqa isort:skip
 import hmac
 import os
 import os.path as path
@@ -9,7 +6,7 @@ import os.path as path
 import msgpack
 import toml
 import valideer as V
-import zmq.green as zmq
+import zmq
 from flask import Flask, request
 from werkzeug.exceptions import (BadRequest, InternalServerError,
                                  ServiceUnavailable, Unauthorized)
