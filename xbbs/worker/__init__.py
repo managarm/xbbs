@@ -315,10 +315,10 @@ def process_job_msg(inst, msg):
         (logrd, logwr) = os.pipe()
         logcoll = gletgroup.spawn(collect_logs, job, output, logrd)
         try:
-            with xutils.open_coop(logwr, mode="w") as pipe_file, \
+            with xutils.open_coop(logwr, mode="w", buffering=1) as pipe_file, \
                  StreamHandler(pipe_file,
                                format_string=LOG_FORMAT,
-                               bubble=True).threadbound():
+                               bubble=True).applicationbound():
                 run_job(inst, output, job, logwr)
         finally:
             logcoll.join()
