@@ -2,9 +2,11 @@
 import argparse
 import contextlib
 import datetime
+import enum
 import errno
 import fcntl
 import hashlib
+import ipaddress
 import os
 import os.path as path
 import plistlib
@@ -20,6 +22,7 @@ import valideer as V
 import zstandard
 
 PROJECT_REGEX = re.compile(r"^[a-zA-Z][_a-zA-Z0-9]{0,30}$")
+DNS_OR_IP_REGEX = re.compile(r"^\[?[:\.\-a-zA-Z0-9]+\]?$")
 TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
 
@@ -29,6 +32,107 @@ def open_coop(*args, **kwargs):
     f = gfobj.FileObjectPosix(*args, **kwargs)
     fcntl.fcntl(f, fcntl.F_SETFL, os.O_NDELAY)
     return f
+
+
+class Endpoint(V.String):
+    Side = enum.Flag("Side", "BIND CONNECT")
+
+    name = "endpoint"
+
+    def __init__(self, side=Side.BIND | Side.CONNECT, **kwargs):
+        super().__init__(**kwargs)
+        self.side = side
+
+    def validate(self, value, adapt=True):
+        super().validate(value, adapt=adapt)
+        transports = {
+            "tcp": self._validate_tcp,
+            "ipc": self._validate_ipc,
+            "inproc": self._validate_inproc,
+            "pgm": self._validate_pgm,
+            "epgm": self._validate_pgm,
+            "vmci": self._validate_vmci,
+        }
+        transport, sep, endpoint = value.partition("://")
+        if not sep:
+            raise V.ValidationError("missing transport://")
+        if transport not in transports:
+            raise V.ValidationError(f"invalid transport {transport!r}")
+        transports[transport](endpoint)
+        return value
+
+    def _validate_tcp(self, endpoint):
+        source_endpoint, sep, endpoint = endpoint.rpartition(";")
+        if sep:
+            if self.side is not self.Side.CONNECT:
+                raise V.ValidationError(
+                    "must not specify source in bindable endpoint")
+            self._validate_tcp_endpoint(source_endpoint,
+                                        wildcard_ok=True)
+
+        self._validate_tcp_endpoint(endpoint,
+                                    wildcard_ok=self.side is self.Side.BIND)
+
+    def _validate_tcp_endpoint(self, endpoint, wildcard_ok=False):
+        host, port = self._validate_port_pair(endpoint, "host",
+                                              wildcard_ok=wildcard_ok)
+        if host == "*":
+            if not wildcard_ok:
+                raise V.ValidationError(
+                    "wildcard host not valid in this context")
+        elif not DNS_OR_IP_REGEX.match(host):
+            raise V.ValidationError(f"host {host!r} does not look like a "
+                                    "valid hostname nor an IP address")
+
+    def _validate_ipc(self, endpoint):
+        if "\0" in endpoint:
+            raise V.ValidationError("paths must not contain NUL bytes")
+
+    def _validate_inproc(self, endpoint):
+        if not endpoint:
+            raise V.ValidationError("inproc name must not be empty")
+        if len(endpoint) > 256:
+            raise V.ValidationError("inproc name must not be longer than 256 "
+                                    "characters")
+
+    def _validate_pgm(self, endpoint):
+        rest, port = self._validate_port_pair(endpoint, "interface;multicast")
+        iface, sep, multicast = rest.rpartition(";")
+        if not sep:
+            raise V.ValidationError("missing semicolon separator")
+        # XXX: is it worth validating iface?
+        try:
+            multicast = ipaddress.IPv4Address(multicast)
+        except ipaddress.AddressValueError as e:
+            # XXX: what address is causing the error?
+            raise V.ValidationError(str(e)) from None
+        if not multicast.is_multicast:
+            raise V.ValidationError(f"{str(multicast)!r} is not a multicast "
+                                    "address")
+
+    def _validate_vmci(self, endpoint):
+        iface, port = self._validate_port_pair(
+            endpoint, "interface", wildcard_ok=self.side is self.Side.BIND)
+        if iface == "*":
+            if self.side is not self.Side.BIND:
+                raise V.ValidationError(
+                    "wildcard interface not valid in this context")
+        elif not iface.isdigit():
+            raise V.ValidationError(f"interface {iface!r} must be an integer")
+
+    def _validate_port_pair(self, endpoint, rest_name, wildcard_ok=False):
+        rest, sep, port = endpoint.rpartition(":")
+        if not sep:
+            raise V.ValidationError(f"endpoint {endpoint} does not follow the "
+                                    f"format of {rest_name}:port")
+        if port == "*":
+            if not wildcard_ok:
+                # XXX: what context?
+                raise V.ValidationError(
+                    "wildcard port not valid in this context")
+        elif not port.isdigit():
+            raise V.ValidationError(f"port {port!r} must be an integer")
+        return rest, port
 
 
 @attr.s

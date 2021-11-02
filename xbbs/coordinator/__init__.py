@@ -60,7 +60,10 @@ def check_output_logged(cmd, **kwargs):
 # more properties are required than not
 with V.parsing(required_properties=True,
                additional_properties=V.Object.REMOVE):
-    @V.accepts(x=V.AnyOf("string", {"bind": "string", "connect": "string"}))
+    @V.accepts(x=V.AnyOf(
+        xutils.Endpoint(),
+        {"bind": xutils.Endpoint(xutils.Endpoint.Side.BIND),
+         "connect": xutils.Endpoint(xutils.Endpoint.Side.CONNECT)}))
     def _receive_adaptor(x):
         if isinstance(x, str):
             return {"bind": x, "connect": x}
@@ -70,13 +73,12 @@ with V.parsing(required_properties=True,
     def _path_exists(x):
         return os.access(x, os.R_OK)
 
-    # TODO(arsen): write an endpoint validator
     CONFIG_VALIDATOR = V.parse({
         "command_endpoint": V.AdaptBy(_receive_adaptor),
         "project_base": "string",
         "build_root": V.AllOf("string", path.isabs),
         "intake": V.AdaptBy(_receive_adaptor),
-        "worker_endpoint": "string",
+        "worker_endpoint": xutils.Endpoint(xutils.Endpoint.Side.BIND),
         # use something like a C identifier, except disallow underscore as a
         # first character too. this is so that we have a namespace for xbbs
         # internal directories, such as collection directories

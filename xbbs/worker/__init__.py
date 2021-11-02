@@ -31,7 +31,7 @@ import xbbs.util as xutils
 
 with V.parsing(required_properties=True, additional_properties=None):
     CONFIG_VALIDATOR = V.parse({
-        "job_endpoint": "string",
+        "job_endpoint": xutils.Endpoint(xutils.Endpoint.Side.BIND),
         "capabilities": V.Nullable(V.AdaptBy(xutils.list_to_set), set()),
     })
 

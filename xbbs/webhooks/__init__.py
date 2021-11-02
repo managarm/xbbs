@@ -12,6 +12,7 @@ from werkzeug.exceptions import (BadRequest, InternalServerError,
                                  ServiceUnavailable, Unauthorized)
 
 import xbbs.messages as msgs
+import xbbs.util as xutils
 
 app = Flask(__name__)
 zctx = zmq.Context.instance()
@@ -27,7 +28,7 @@ def _list_wrap(x):
 with V.parsing(required_properties=True,
                additional_properties=V.Object.REMOVE):
     CONFIG_VALIDATOR = V.parse({
-        "coordinator_endpoint": "string",
+        "coordinator_endpoint": xutils.Endpoint(xutils.Endpoint.Side.CONNECT),
         "?coordinator_timeout": "integer",
         "?start_delay": "integer",
         "?github_secret": "string",
