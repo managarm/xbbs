@@ -557,14 +557,8 @@ def run_project(inst, project, delay, incremental):
                     build.update_state(msgs.BuildState.UPDATING_MIRRORS)
                     mirror_build_dir = path.join(project.base, "mirror_build")
                     os.makedirs(mirror_build_dir, exist_ok=True)
-                    try:
-                        os.remove(path.join(mirror_build_dir,
-                                            "bootstrap.link"))
-                    except FileNotFoundError:
-                        pass
-                    check_call_logged(["xbstrap", "init", projdir],
-                                      cwd=mirror_build_dir)
-                    check_call_logged(["xbstrap-mirror", "update"],
+                    check_call_logged(["xbstrap-mirror", "-S", projdir,
+                                       "update"],
                                       cwd=mirror_build_dir)
 
                 check_call_logged(["xbstrap", "rolling-versions", "fetch"],
