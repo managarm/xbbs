@@ -558,7 +558,7 @@ def run_project(inst, project, delay, incremental):
                     mirror_build_dir = path.join(project.base, "mirror_build")
                     os.makedirs(mirror_build_dir, exist_ok=True)
                     check_call_logged(["xbstrap-mirror", "-S", projdir,
-                                       "update"],
+                                       "update", "--keep-going"],
                                       cwd=mirror_build_dir)
 
                 check_call_logged(["xbstrap", "rolling-versions", "fetch"],
