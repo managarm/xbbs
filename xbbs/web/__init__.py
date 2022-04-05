@@ -12,8 +12,9 @@ import humanize
 import msgpack
 import zmq
 from flask import (Flask, jsonify, make_response, render_template, request,
-                   safe_join, send_from_directory, url_for)
+                   send_from_directory, url_for)
 from werkzeug.exceptions import NotAcceptable, NotFound, ServiceUnavailable
+from werkzeug.utils import safe_join
 
 import xbbs.messages as msgs
 import xbbs.util as xutils
