@@ -71,6 +71,39 @@ Rolling repository
 			<strong>Required shlibs:</strong>
 			{{ pkg["shlib-requires"]|join(", ") }}<br>
 {%- endif %}
+{%- if diff_repodata %}
+{%- if name in diff_repodata %}
+{#- in distrepo #}
+{%- set distpkg = diff_repodata[name] %}
+{%- set disthash = distpkg["filename-sha256"] %}
+{%- set distver = xbps_parse(distpkg.pkgver) %}
+{%- set pkghash = pkg["filename-sha256"] %}
+{%- set pkgver = xbps_parse(pkg.pkgver) %}
+<strong>Distribution version:</strong> {{ distpkg.pkgver }}<br>
+{%- if distver < pkgver -%}
+{# older version #}
+<div class="success">
+	Newer than distribution repository: {{ distpkg.pkgver }}.<br>
+</div>
+{%- elif distver == pkgver and disthash != pkghash %}
+{# in distrepo, not reproduced #}
+<div class="failed">
+	Hash mismatch.<br>
+	Distribution: <code>{{ disthash }}</code>,<br>
+	Current build: <code>{{ pkghash }}</code>.<br>
+</div>
+{%- elif ts == "rolling" and distver > pkgver %}
+<div class="failed">
+	Package older than distribution repository.
+</div>
+{%- endif -%}
+
+{%- else -%}
+<div class="failed">
+	Package not in distribution repository.
+</div>
+{%- endif -%}
+{%- endif -%}
 		</td>
 	</tr>
 {%- endfor %}

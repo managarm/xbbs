@@ -15,6 +15,7 @@ import shutil
 import tarfile
 
 import attr
+from attr import define, field
 import gevent.fileobject as gfobj
 import gevent.lock as glock
 import gevent.pool
@@ -261,3 +262,68 @@ def autojoin_group(groupclass=gevent.pool.Group, *args, **kwargs):
     group = groupclass(*args, **kwargs)
     yield group
     group.join()
+
+
+@define(order=True)
+class XbpsVersion:
+    components: list[int] = field()
+    revision: int = field()
+
+
+def xbps_parse(ver: str):
+    """
+    Breaks up ver into components, as XBPS does.
+
+    https://github.com/void-linux/xbps/blob/778dbab22b75db772060dce5e4a183db686b379f/lib/external/dewey.c
+    """
+    # revisions make this rather ugly
+    # the comparison is supposed to work like this:
+    # max_len = max(len(dew_a), len(dew_b))
+    # return cmp(pad(dew_a, max_len) + revision, pad(dew_b, max_len) + revision)
+    # where pad pads with zeroes
+    # we'll just return a class that handles this for us
+    over = ver
+    component_scores = []
+    weights = {
+        ".": 0,
+        "pl": 0,
+        "alpha": -3,
+        "beta": -2,
+        "rc": -1,
+    }
+    revision = None
+
+    while ver:
+        if ver[0].isdecimal():
+            # numeric component, pop as many as possible
+            num = 0
+            while ver and ver[0].isdecimal():
+                num = num * 10 + int(ver[0])
+                ver = ver[1:]
+            component_scores.append(num)
+            continue
+
+        for pfx, score in weights.items():
+            if ver.startswith(pfx):
+                ver = ver[len(pfx):]
+                component_scores.append(score)
+                break
+        else:
+            if ver[0].isalpha():
+                ver = ver[1:]
+                component_scores.append(0)
+                continue
+
+            if ver[0] == "_":
+                ver = ver[1:]
+                revision = int(ver)
+                break
+
+            # if all else fails, we skip the character
+            # TODO(arsen): I don't like this, double check if xbps does this later
+            ver = ver[1:]
+
+    if not ver.isalnum():
+        raise RuntimeError(f"revision component not last in {over}")
+
+    return XbpsVersion(component_scores, revision)

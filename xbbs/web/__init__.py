@@ -326,6 +326,14 @@ def format_timestamp(x):
     return dt
 
 
+@app.template_global()
+def xbps_parse(x):
+    _, check, ver = x.rpartition("-")
+    if not check:
+        raise RuntimeError(f"invalid pkgver {x}")
+    return xutils.xbps_parse(ver)
+
+
 def find_latest_build(status, proj, **kwargs):
     project = safe_join(projbase, proj)
     try:
@@ -361,6 +369,7 @@ def find_latest_build(status, proj, **kwargs):
 def render_pkgs_for_builds(status, proj, ts, build_info):
     # TODO: multiarch
     pkg_repo_dir = pathlib.Path(projbase) / proj / ts / "package_repo/"
+    distrib_repo = pathlib.Path(projbase) / proj / "distrib/package_repo/"
     repodata_files = [x for x in pkg_repo_dir.iterdir()
                       if str(x).endswith("-repodata")]
     if len(repodata_files) > 1:
@@ -369,10 +378,18 @@ def render_pkgs_for_builds(status, proj, ts, build_info):
         raise NotFound()
 
     pkg_idx = xutils.read_xbps_repodata(repodata_files[0])
+    diff_idx = None
+    try:
+        diff_idx = distrib_repo / repodata_files[0].name
+        diff_idx = xutils.read_xbps_repodata(diff_idx)
+    except FileNotFoundError:
+        # we assume no diff by default
+        diff_idx = None
     return render_template("packages.html",
                            load=status.load,
                            host=status.hostname,
                            repodata=pkg_idx,
+                           diff_repodata=diff_idx,
                            project=proj,
                            ts=ts,
                            build_info=build_info
