@@ -360,7 +360,7 @@ def find_latest_build(status, proj, **kwargs):
 
 def render_pkgs_for_builds(status, proj, ts, build_info):
     # TODO: multiarch
-    pkg_repo_dir = pathlib.Path(projbase) / proj / "rolling/package_repo/"
+    pkg_repo_dir = pathlib.Path(projbase) / proj / ts / "package_repo/"
     repodata_files = [x for x in pkg_repo_dir.iterdir()
                       if str(x).endswith("-repodata")]
     if len(repodata_files) > 1:
