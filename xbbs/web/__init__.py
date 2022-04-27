@@ -11,8 +11,15 @@ import flask.json
 import humanize
 import msgpack
 import zmq
-from flask import (Flask, jsonify, make_response, render_template, request,
-                   send_from_directory, url_for)
+from flask import (
+    Flask,
+    jsonify,
+    make_response,
+    render_template,
+    request,
+    send_from_directory,
+    url_for,
+)
 from werkzeug.exceptions import NotAcceptable, NotFound, ServiceUnavailable
 from werkzeug.utils import safe_join
 

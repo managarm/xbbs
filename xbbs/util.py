@@ -15,12 +15,12 @@ import shutil
 import tarfile
 
 import attr
-from attr import define, field
 import gevent.fileobject as gfobj
 import gevent.lock as glock
 import gevent.pool
 import valideer as V
 import zstandard
+from attr import define, field
 
 PROJECT_REGEX = re.compile(r"^[a-zA-Z][_a-zA-Z0-9]{0,30}$")
 DNS_OR_IP_REGEX = re.compile(r"^\[?[:\.\-a-zA-Z0-9]+\]?$")

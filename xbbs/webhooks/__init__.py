@@ -8,8 +8,12 @@ import toml
 import valideer as V
 import zmq
 from flask import Flask, request
-from werkzeug.exceptions import (BadRequest, InternalServerError,
-                                 ServiceUnavailable, Unauthorized)
+from werkzeug.exceptions import (
+    BadRequest,
+    InternalServerError,
+    ServiceUnavailable,
+    Unauthorized,
+)
 
 import xbbs.messages as msgs
 import xbbs.util as xutils
