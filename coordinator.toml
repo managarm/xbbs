@@ -8,6 +8,26 @@ command_endpoint = "ipc:///home/arsen/xbci/site-local/xbbs-cmd-socket"
 #	{ bind = "tcp://127.0.0.1:16001", connect = "tcp://localhost:16001" }
 intake = "tcp://127.0.0.1:16999"
 worker_endpoint = "tcp://127.0.0.1:16001"
+# Under this path projects and their builds reside as <project>/<build_ts>, as
+# well as a few special directories:
+#  - ./{_coldir,_tmp}:
+#        for storage of temporary files and artifact collection
+#  - ./<project>/rolling:
+#        rolling artifact repositories. These always contain the most
+#        up-to-date versions of a given artifact, and are used as seeds of
+#        incremental builds.
+#  - ./<project>/distrib:
+#        The distribution repository for a given project. Used in comparisons
+#        in the web packages display. This directory is only ever read, and
+#        hence is not subject to the same-filesystem recommendation.
+#  - ./<project>/mirror_build:
+#        The directory in which xbstrap-mirror is executed. Intended to be
+#        exposed on the same path as specified in the mirror_root variables.
+#  - ./<project>/current:
+#        A link to the currently running build.
+# It is advisable to keep all of the above (especially the collection and
+# temporary directory) on one filesystem, to allow for fast atomic moves,
+# unless stated otherwise.
 project_base = "/home/arsen/xbci/site-local/projects"
 # do not change this value after initial setup, it's used by the workers to
 # determine the path where packages should be built, because some packages
