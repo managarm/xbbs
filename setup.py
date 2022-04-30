@@ -24,9 +24,13 @@ setup(
         "humanize",
         # required to decompress repodata into tar
         "zstandard",
-        "psycopg",
-        "psycopg[c] ; platform_python_implementation == 'CPython'",
     ],
+    extras_require={
+        "history": [
+            "psycopg",
+            "psycopg[c] ; platform_python_implementation == 'CPython'",
+        ]
+    },
     include_package_data=True,
     entry_points={
         "console_scripts": [

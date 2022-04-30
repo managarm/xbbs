@@ -26,11 +26,15 @@ import gevent.queue
 import gevent.time
 import gevent.util
 import msgpack as msgpk
-import psycopg
 import toml
 import valideer as V
 import zmq.green as zmq
 from logbook import Logger, StderrHandler
+
+try:
+    from psycopg import Connection as PgConnection
+except ImportError:
+    PgConnection = None
 
 import xbbs.messages as msgs
 import xbbs.protocol
@@ -161,7 +165,7 @@ class Xbbs:
     project_greenlets = attr.ib(factory=list)
     zmq = attr.ib(default=zmq.Context.instance())
     outgoing_job_queue = attr.ib(factory=lambda: gevent.queue.Queue(1))
-    db: psycopg.Connection = attr.ib(default=None)
+    db: PgConnection = attr.ib(default=None)
 
     @classmethod
     def create(cls, cfg):
@@ -1172,8 +1176,14 @@ def main():
 
     database_conn = contextlib.nullcontext(None)
     if cfg.get("artifact_history"):
-        database_conn = psycopg.connect()
-        log.debug("established PG connection ({})", database_conn)
+        if PgConnection:
+            database_conn = PgConnection.connect()
+            log.debug("established PG connection ({})", database_conn)
+        else:
+            log.error(
+                "psycopg3 was not found. In order to use artifact_history, you will"
+                " need to install xbbs with the history extras group."
+            )
 
     with database_conn as inst.db, \
          inst.zmq.socket(zmq.REP) as sock_cmd, \
