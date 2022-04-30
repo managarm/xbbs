@@ -23,7 +23,9 @@ setup(
         "requests",
         "humanize",
         # required to decompress repodata into tar
-        "zstandard"
+        "zstandard",
+        "psycopg",
+        "psycopg[c] ; platform_python_implementation == 'CPython'",
     ],
     include_package_data=True,
     entry_points={

@@ -26,6 +26,7 @@ import gevent.queue
 import gevent.time
 import gevent.util
 import msgpack as msgpk
+import psycopg
 import toml
 import valideer as V
 import zmq.green as zmq
@@ -79,6 +80,7 @@ with V.parsing(required_properties=True,
         "build_root": V.AllOf("string", path.isabs),
         "intake": V.AdaptBy(_receive_adaptor),
         "worker_endpoint": xutils.Endpoint(xutils.Endpoint.Side.BIND),
+        "?artifact_history": V.Nullable("boolean", False),
         # use something like a C identifier, except disallow underscore as a
         # first character too. this is so that we have a namespace for xbbs
         # internal directories, such as collection directories
@@ -159,6 +161,7 @@ class Xbbs:
     project_greenlets = attr.ib(factory=list)
     zmq = attr.ib(default=zmq.Context.instance())
     outgoing_job_queue = attr.ib(factory=lambda: gevent.queue.Queue(1))
+    db: psycopg.Connection = attr.ib(default=None)
 
     @classmethod
     def create(cls, cfg):
@@ -774,9 +777,9 @@ command_loop.cmds = {
 def cmd_chunk(inst, value):
     chunk = msgs.ChunkMessage.unpack(value)
     if chunk.last_hash == b"initial":
-        # (fd, path)
-        store = tempfile.mkstemp(dir=inst.collection_dir)
-        os.fchmod(store[0], 0o644)
+        (fd, path) = tempfile.mkstemp(dir=inst.collection_dir)
+        os.fchmod(fd, 0o644)
+        store = (fd, path, blake2b())
     elif chunk.last_hash not in cmd_chunk.table:
         return
     else:
@@ -784,6 +787,7 @@ def cmd_chunk(inst, value):
         del cmd_chunk.table[chunk.last_hash]
     digest = blake2b(value).digest()
     cmd_chunk.table[digest] = store
+    store[2].update(chunk.data)
     os.write(store[0], chunk.data)
 
 
@@ -854,6 +858,30 @@ def update_tool_registry(artifact_file, artifact, toolvers=None):
         os.rename(f.name, repodata)
 
 
+def record_artifact(inst: Xbbs, run: Build, artifact: Artifact, digest_fn):
+    if not inst.db:
+        return
+
+    if artifact.kind not in [Artifact.Kind.TOOL, Artifact.Kind.PACKAGE]:
+        return
+
+    with inst.db.cursor() as cur, \
+         inst.db.transaction():
+        cur.execute(
+            """
+            INSERT INTO artifact_history (
+                project_name, build_date,
+                artifact_type, artifact_name, artifact_version,
+                result_hash
+            ) VALUES (%s, %s, %s, %s, %s, %s);
+            """, (
+                run.name, run.ts,
+                artifact.kind.name.lower(), artifact.name, artifact.version,
+                digest_fn.digest(),
+            )
+        )
+
+
 def cmd_artifact(inst, value):
     "handle receiving an artifact"
     message = msgs.ArtifactMessage.unpack(value)
@@ -894,9 +922,16 @@ def cmd_artifact(inst, value):
             run.artifact_received.set()
             return
 
-        (fd, target) = cmd_chunk.table[message.last_hash]
+        (fd, target, digest_fn) = cmd_chunk.table[message.last_hash]
         del cmd_chunk.table[message.last_hash]
         os.close(fd)
+
+        try:
+            record_artifact(inst, run, artifact, digest_fn)
+        except Exception:
+            log.exception(
+                "failed to record artifact build into history ({} {})", run, artifact
+            )
 
         try:
             arch = artifact.architecture
@@ -1135,7 +1170,13 @@ def main():
         os.makedirs(project.base, exist_ok=True)
         log.debug("got project {}", inst.projects[name])
 
-    with inst.zmq.socket(zmq.REP) as sock_cmd, \
+    database_conn = contextlib.nullcontext(None)
+    if cfg.get("artifact_history"):
+        database_conn = psycopg.connect()
+        log.debug("established PG connection ({})", database_conn)
+
+    with database_conn as inst.db, \
+         inst.zmq.socket(zmq.REP) as sock_cmd, \
          inst.zmq.socket(zmq.PULL) as inst.intake, \
          inst.zmq.socket(zmq.ROUTER) as inst.worker_endpoint:
         # XXX: potentially make perms overridable? is that useful in any

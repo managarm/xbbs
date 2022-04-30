@@ -33,6 +33,10 @@ project_base = "/home/arsen/xbci/site-local/projects"
 # determine the path where packages should be built, because some packages
 # decided hard coding absolute paths wasn't a terrible idea somehow
 build_root = "/home/arsen/xbci/site-local/worker"
+# Store artifact history in PostgreSQL, for statistical purposes.
+# See https://www.postgresql.org/docs/current/libpq-envars.html for specifying
+# connection parameters.
+artifact_history = true
 
 [projects.managarm]
 git = "/home/arsen/xbci/site-local/test-repo"
