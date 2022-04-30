@@ -4,7 +4,7 @@ CREATE TYPE artifact_type AS ENUM (
 );
 
 CREATE TABLE artifact_history (
-    id integer serial PRIMARY KEY,
+    id bigserial PRIMARY KEY,
     project_name text NOT NULL,
     build_date timestamptz NOT NULL,
     artifact_type artifact_type NOT NULL,
