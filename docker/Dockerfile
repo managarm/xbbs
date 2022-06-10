@@ -1,4 +1,4 @@
-FROM managarm_buildenv
+FROM ubuntu:22.04 as ubuntu
 
 USER root
 RUN mkdir /builder
