@@ -10,6 +10,7 @@ import subprocess
 import tarfile
 import time
 from functools import partial
+from typing import Iterator
 from hashlib import blake2b
 from subprocess import Popen, check_call
 from urllib.parse import urlparse
@@ -106,6 +107,27 @@ def process_repo_url(url):
         raise RuntimeError("url must be file or http(s)")
 
 
+def _populate_repo_from_cache(
+    upstream: str, rootdir: str, repo_dir: str
+) -> Iterator[os.DirEntry]:
+    log.debug("creating repository with existing packages...")
+    os.makedirs(repo_dir, exist_ok=True)
+    cache_dir = path.join(rootdir, "var/cache/xbps")
+    upstream_url = urlparse(upstream)
+    if upstream_url.scheme in ["file", ""]:
+        cache_dir = upstream_url.path
+
+    with os.scandir(cache_dir) as it:
+        for entry in it:
+            if not entry.name.endswith(".xbps"):
+                continue
+            if not entry.is_file(follow_symlinks=True):
+                continue
+            log.debug("... found {}", entry.name)
+            shutil.copy2(entry.path, path.join(repo_dir, entry.name))
+            yield entry
+
+
 # TODO(arsen): all output needs to be redirected to a pty
 def run_job(inst, sock, job, logfd):
     start = time.monotonic()
@@ -186,6 +208,14 @@ def run_job(inst, sock, job, logfd):
                     "-r", sysroot,
                     "-SM", "--"] + list(job.needed_pkgs),
                    extra_env={"XBPS_ARCH": build_arch})
+
+            # hack around runcmd requiring context, ugh
+            for entry in _populate_repo_from_cache(job.pkg_repo, sysroot, repo_dir):
+                runcmd(
+                    ["xbps-rindex", "-fa", "--", entry.name],
+                    extra_env={"XBPS_ARCH": build_arch},
+                    cwd=repo_dir
+                )
 
         for x in job.needed_tools:
             tool_dir = path.join(tools_dir, x)
