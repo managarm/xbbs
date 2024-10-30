@@ -7,7 +7,7 @@ import pathlib
 from datetime import datetime, timezone
 from functools import wraps
 
-import flask.json
+import flask.json.provider
 import humanize
 import msgpack
 import zmq
@@ -27,12 +27,11 @@ import xbbs.messages as msgs
 import xbbs.util as xutils
 
 
-class ExtendedJSONEncoder(flask.json.JSONEncoder):
+class ExtendedJSONProvider(flask.json.provider.DefaultJSONProvider):
     def default(self, o):
         if isinstance(o, msgs.BuildState):
             return o.name
-        return super().default(0)
-
+        return super().default(o)
 
 class BackendError(RuntimeError):
     status_code = 200
@@ -48,7 +47,7 @@ app = Flask(__name__)
 app.use_x_sendfile = os.getenv("XBBS_USE_X_SENDFILE", "").lower() in [
     "1", "t", "true", "yes",
 ]
-app.json_encoder = ExtendedJSONEncoder
+app.json = ExtendedJSONProvider(app)
 coordinator = os.environ["XBBS_COORDINATOR_ENDPOINT"]
 projbase = os.environ["XBBS_PROJECT_BASE"]
 zctx = zmq.Context.instance()
