@@ -133,9 +133,12 @@ do_schedule.parser.add_argument(
 
 
 def main():
-    XBBS_CFG_DIR = os.getenv("XBBS_CFG_DIR", "/etc/xbbs")
-    with open(path.join(XBBS_CFG_DIR, "coordinator.toml"), "r") as fcfg:
-        cfg = CONFIG_VALIDATOR.validate(toml.load(fcfg))
+    endpoint = os.getenv("XBBS_COORDINATOR_ENDPOINT")
+    if endpoint is None:
+        XBBS_CFG_DIR = os.getenv("XBBS_CFG_DIR", "/etc/xbbs")
+        with open(path.join(XBBS_CFG_DIR, "coordinator.toml"), "r") as fcfg:
+            cfg = CONFIG_VALIDATOR.validate(toml.load(fcfg))
+        endpoint = cfg["command_endpoint"]["connect"]
 
     parsed = argparser.parse_args()
     if not parsed.command:
@@ -155,5 +158,5 @@ def main():
 
     with zctx.socket(zmq.REQ) as conn:
         conn.set(zmq.LINGER, 0)
-        conn.connect(cfg["command_endpoint"]["connect"])
+        conn.connect(endpoint)
         subcommand(conn, parsed)
