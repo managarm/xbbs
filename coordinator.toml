@@ -1,4 +1,6 @@
-command_endpoint = "ipc:///home/arsen/xbci/site-local/xbbs-cmd-socket"
+# Values in here are hard-coded in such a way to enable use in conjunction
+# with ./docker/compose.yml.  Update accordingly and locally.
+command_endpoint = "tcp://coordinator:16999"
 # Addresses can be dictionaries consisting of the bind and connect address: the
 # bind address is the local address that the coordinator will bind it's end of
 # the pipeline to. connect is the endpoint that will be passed to remote
@@ -6,8 +8,8 @@ command_endpoint = "ipc:///home/arsen/xbci/site-local/xbbs-cmd-socket"
 # separate to work around NAT. Making the address a string makes both values
 # equal in the validation phase of config parsing
 #	{ bind = "tcp://127.0.0.1:16001", connect = "tcp://localhost:16001" }
-intake = "tcp://127.0.0.1:16999"
-worker_endpoint = "tcp://127.0.0.1:16001"
+intake = "tcp://coordinator:16998"
+worker_endpoint = "tcp://coordinator:16001"
 # Under this path projects and their builds reside as <project>/<build_ts>, as
 # well as a few special directories:
 #  - ./{_coldir,_tmp}:
@@ -28,28 +30,28 @@ worker_endpoint = "tcp://127.0.0.1:16001"
 # It is advisable to keep all of the above (especially the collection and
 # temporary directory) on one filesystem, to allow for fast atomic moves,
 # unless stated otherwise.
-project_base = "/home/arsen/xbci/site-local/projects"
+project_base = "/projects"
 # do not change this value after initial setup, it's used by the workers to
 # determine the path where packages should be built, because some packages
 # decided hard coding absolute paths wasn't a terrible idea somehow
-build_root = "/home/arsen/xbci/site-local/worker"
+build_root = "/worker"
 # Store artifact history in PostgreSQL, for statistical purposes.
 # See https://www.postgresql.org/docs/current/libpq-envars.html for specifying
 # connection parameters.
 artifact_history = true
 
 [projects.managarm]
-git = "/home/arsen/xbci/site-local/test-repo"
+git = "https://github.com/managarm/bootstrap-managarm.git"
 description = "Pragmatic microkernel-based OS with fully asynchronous I/O"
 classes = ["managarm"]
 # external access to tools and packages repo, to be used by worker (through
 # xbps-install and just a simple tarfile download)
-packages = "file:///home/arsen/xbci/site-local/projects/managarm/current/package_repo"
-tools = "file:///home/arsen/xbci/site-local/projects/managarm/current/tool_repo"
-fingerprint = "99:12:e7:7d:3c:e1:7d:53:9b:4e:23:65:b6:6a:38:81"
+packages = "/projects/managarm/current/package_repo"
+tools = "/projects/managarm/current/tool_repo"
+fingerprint = "@FINGERPRINT@"
 incremental = true
 distfile_path = "xbbs/x86_64/"
-mirror_root = "http://localhost/"
+#mirror_root = "http://localhost/"
 
 [projects.managarm_aarch64]
 git = "https://github.com/managarm/bootstrap-managarm.git"
@@ -57,31 +59,8 @@ description = "Pragmatic microkernel-based OS with fully asynchronous I/O. Now o
 classes = ["managarm"]
 # external access to tools and packages repo, to be used by worker (through
 # xbps-install and just a simple tarfile download)
-packages = "file:///home/arsen/xbci/site-local/projects/managarm_aarch64/current/package_repo"
-tools = "file:///home/arsen/xbci/site-local/projects/managarm_aarch64/current/tool_repo"
-fingerprint = "99:12:e7:7d:3c:e1:7d:53:9b:4e:23:65:b6:6a:38:81"
+packages = "/projects/managarm_aarch64/current/package_repo"
+tools = "/projects/managarm_aarch64/current/tool_repo"
+fingerprint = "@FINGERPRINT@"
 incremental = true
 distfile_path = "xbbs/aarch64"
-
-[projects.mlibc]
-git = "/home/arsen/xbci/site-local/mlibc-repo"
-description = "managarm takes too long to build"
-classes = ["managarm"]
-# external access to tools and packages repo, to be used by worker (through
-# xbps-install and just a simple tarfile download)
-packages = "file:///home/arsen/xbci/site-local/projects/mlibc/current/package_repo"
-tools = "file:///home/arsen/xbci/site-local/projects/mlibc/current/tool_repo"
-fingerprint = "99:12:e7:7d:3c:e1:7d:53:9b:4e:23:65:b6:6a:38:81"
-
-[projects.vinix]
-git = "/home/arsen/xbci/site-local/vinix-repo"
-description = "V-based operating system"
-classes = ["vinix"]
-# external access to tools and packages repo, to be used by worker (through
-# xbps-install and just a simple tarfile download)
-packages = "file:///home/arsen/xbci/site-local/projects/vinix/current/package_repo"
-tools = "file:///home/arsen/xbci/site-local/projects/vinix/current/tool_repo"
-fingerprint = "99:12:e7:7d:3c:e1:7d:53:9b:4e:23:65:b6:6a:38:81"
-incremental = true
-# distfile_path = "xbbs/"
-default_branch = "main"

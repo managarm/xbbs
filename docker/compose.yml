@@ -1,0 +1,96 @@
+# Convenience compose to do local build bringup.  Removes all system
+# inconsistencies, at long last!
+#
+# Also this is far less ugly.
+
+name: xbbs-dev
+
+services:
+  psql:
+    restart: always
+    image: docker.io/postgres:16
+    volumes:
+      - psql:/var/lib/postgresql/data
+      - ../xbbs/sql/:/docker-entrypoint-initdb.d:ro
+    environment:
+      POSTGRES_PASSWORD: awfulpass
+
+  coordinator:
+    image: xbbs-devrt
+    pull_policy: never
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile-devrt
+    ports:
+      - 16999:16999/tcp
+    volumes:
+      - src:/src
+      - projects:/projects
+      - ../coordinator.toml:/etc/xbbs/coordinator.toml.in:ro
+    environment:
+      XBBS_CMD: |2
+        set -xe
+        (
+          cd /projects/
+          mkdir -p keys
+          cd keys
+          set -- *
+          if [ "$$1" = '*' ]; then
+            /src/xbps-keygen 'xbbs tester'
+            fingerprint="$(echo *.rsa | sed s/\\.rsa//)"
+          elif [ "$$#" -eq 2 ]; then
+            fingerprint="$${1%.*}"
+          else
+            printf 'what?  two keys?'
+            exit 1
+          fi
+          for project in managarm managarm_aarch64; do # unfortunate ik
+            mkdir -p ../"$$project"
+            cp * ../"$$project" # contents known to be OK
+          done
+          sed "s/@FINGERPRINT@/$$fingerprint/g" /etc/xbbs/coordinator.toml.in \
+            >/etc/xbbs/coordinator.toml
+        )
+        exec xbbs-coordinator
+      PGHOST: psql
+      PGDATABASE: postgres
+      PGUSER: postgres
+      PGPASSWORD: awfulpass
+
+  worker:
+    image: xbbs-devrt
+    pull_policy: never
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile-devrt
+    volumes:
+      - src:/src
+      - ../worker.toml:/etc/xbbs/worker.toml:ro
+    environment:
+      XBBS_CMD: exec xbbs-worker
+    security_opt:
+      # Needed for cbuildrt.  Could be a better profile but eh.
+      - "seccomp=unconfined"
+
+  web:
+    image: xbbs-devrt
+    pull_policy: never
+    ports:
+      - 8000:8000/tcp
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile-devrt
+    volumes:
+      - projects:/projects
+    environment:
+      XBBS_CMD: FLASK_ENV=development XBBS_COORDINATOR_ENDPOINT=tcp://coordinator:16999 XBBS_PROJECT_BASE=/projects/ exec gunicorn --reload -k gevent xbbs.web:app --bind 0.0.0.0:8000
+
+volumes:
+  psql:
+  src:
+    driver: local
+    driver_opts:
+      type: overlay
+      o: lowerdir=${PWD}/..,upperdir=${PWD}/src-ov-upper,workdir=${PWD}/src-ov-work
+      device: overlay
+  projects:
