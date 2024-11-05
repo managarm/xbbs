@@ -14,6 +14,10 @@ services:
       - ../xbbs/sql/:/docker-entrypoint-initdb.d:ro
     environment:
       POSTGRES_PASSWORD: awfulpass
+    healthcheck:
+      test: "pg_isready -d postgres -U postgres"
+      interval: 3s
+      start_period: 3s
 
   coordinator:
     image: xbbs-devrt
@@ -21,6 +25,9 @@ services:
     build:
       context: ../
       dockerfile: docker/Dockerfile-devrt
+    depends_on:
+      psql:
+        condition: service_healthy
     ports:
       - 16999:16999/tcp
     volumes:
