@@ -46,6 +46,11 @@ RUN mkdir -p /var/lib/cbuildrt/managarm-buildenv \
     && ( wget -O- https://repos.managarm.org/buildenv/managarm-buildenv.tar.gz \
     | tar -xzf - --strip-components=1 -p )
 
+# Download and install xbps (same version as xbstrap does)
+RUN cd /usr/local/bin \
+    &&  ( wget -O- https://repo-default.voidlinux.org/static/xbps-static-static-0.59_5.x86_64-musl.tar.xz \
+    | tar -xJf - ./usr/bin/ --strip-components=3 )
+
 COPY --chmod=755 <<"EOF" /run_xbbs.sh
 #!/bin/sh
 set -e
