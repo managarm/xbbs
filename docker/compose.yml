@@ -73,11 +73,12 @@ services:
     volumes:
       - src:/src
       - ../worker.toml:/etc/xbbs/worker.toml:ro
+      - projects:/projects
     environment:
       XBBS_CMD: exec xbbs-worker
-    security_opt:
-      # Needed for cbuildrt.  Could be a better profile but eh.
-      - "seccomp=unconfined"
+    # TODO(arsen): will need to make this less aggressive before utilizing
+    # docker in prod
+    privileged: true
 
   web:
     image: xbbs-devrt
