@@ -92,6 +92,11 @@ services:
       - projects:/projects
     environment:
       XBBS_CMD: FLASK_ENV=development XBBS_COORDINATOR_ENDPOINT=tcp://coordinator:16999 XBBS_PROJECT_BASE=/projects/ exec gunicorn --reload -k gevent xbbs.web:app --bind 0.0.0.0:8000
+    develop:
+      watch:
+        - action: sync+restart
+          path: ../xbbs/web
+          target: /src/xbbs/web
 
 volumes:
   psql:
