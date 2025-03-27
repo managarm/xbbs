@@ -10,6 +10,7 @@ from functools import wraps
 import flask.json.provider
 import humanize
 import msgpack
+import pybadges
 import zmq
 from flask import (
     Flask,
@@ -197,6 +198,45 @@ def overview():
                            host=status.hostname,
                            history=build_history
                            )
+
+
+@app.route("/badge/<project_name>")
+def badge(project_name):
+    status = msgs.StatusMessage.unpack(send_request(b"status", b""))
+    if project_name not in status.projects:
+        raise NotFound("unknown project")
+
+    project = path.join(projbase, project_name)
+    try:
+        _listdir = os.listdir(project)
+    except NotADirectoryError:
+        raise NotFound()
+
+    build_history = []
+    for build in _listdir:
+        try:
+            build_ts = xutils.strptime(build, xutils.TIMESTAMP_FORMAT)
+        except ValueError:
+            continue
+        build_info = load_build(status, project_name, build)
+        build_info.update(timestamp=build_ts)
+        build_history.append(build_info)
+    build_history.sort(key=lambda x: x["timestamp"], reverse=True)
+
+    for item in build_history:
+        if ("finished" not in item) or (not item["finished"]):
+            secondary = "running"
+            color = "yellow"
+        else:
+            secondary = "success" if item["success"] else "failing"
+            color = "green" if item["success"] else "red"
+
+        return flask.Response(
+            pybadges.badge(left_text=project_name, right_text=secondary, right_color=color),
+            mimetype='image/svg+xml'
+        )
+
+    raise NotFound("project has no builds yet")
 
 
 @app.route("/jobs/<proj>/<ts>")
