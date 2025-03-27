@@ -32,7 +32,7 @@ ADD xbbs /src/xbbs
 # of anything except managarm-bootstrap)
 RUN . /venv/bin/activate \
     && pip install https://github.com/ArsenArsen/valideer/archive/cec1755914c21628706bb1392e0c61c6c600318e.tar.gz \
-    && pip install y4
+    && pip install y4 pybadges
 RUN . /venv/bin/activate && pip install -e /src/.'[history]'
 
 # Download cbuildrt v0.1.3
