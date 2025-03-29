@@ -24,6 +24,7 @@ setup(
         "humanize",
         # required to decompress repodata into tar
         "zstandard",
+        "pybadges"
     ],
     extras_require={
         "history": [
