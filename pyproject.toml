@@ -1,3 +1,66 @@
+[build-system]
+requires = ["flit_core >=3.11,<4"]
+build-backend = "flit_core.buildapi"
+
+[project.urls]
+Home = "https://github.com/managarm/xbbs"
+
+[project]
+name = "xbbs"
+authors = [{name = "Arsen Arsenović", email = "arsen@managarm.org"}]
+readme = "README.rst"
+dynamic = ["version"]
+description = "xbbs is a distributed build server for building software distributions across a fleet of machines"
+license = "AGPL-3.0-or-later"
+
+dependencies = [
+    # Communication.
+    "aiohttp",
+    "msgpack",
+
+    # Mapping and validation.
+    "pydantic",
+
+    # Configuration parsing.
+    "toml",
+
+    # Heavy lifting.
+    "xbstrap",
+
+    # xbbs-web dependencies
+    "Flask",
+    "requests",
+    "humanize",
+]
+
+[project.optional-dependencies]
+dev = [
+    "mypy",
+    "flake8",
+    "isort",
+    "pytest",
+    "pre-commit",
+    "pytest",
+
+    # Type stubs.
+    "types-toml",
+    "types-PyYAML",
+    "types-requests",
+    "msgpack-types",
+]
+
+[project.scripts]
+xbbs-coordinator = "xbbs.coordinator:main"
+xbbs-worker = "xbbs.worker:main"
+xbbs-rotate-builds = "xbbs.utils.rotation:main"
+
+[tool.mypy]
+strict = true
+
+[tool.black]
+line-length = 99
+target-version = ["py311"]
+
 [tool.isort]
+py_version = 311
 profile = "black"
-src_paths = ["xbbs", "setup.py"]

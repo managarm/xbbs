@@ -1,4 +1,4 @@
-# Allow invoking the coordinator as a module
+# Overview page.
 # Copyright (C) 2025  Arsen Arsenović <arsen@managarm.org>
 
 # This program is free software: you can redistribute it and/or modify
@@ -14,6 +14,13 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from . import main
+"""Overview page of ``xbbs-web``."""
 
-main()
+from flask import Blueprint, render_template
+
+bp = Blueprint("overview", __name__)
+
+
+@bp.get("/")
+def overview() -> str:
+    return render_template("overview.html")

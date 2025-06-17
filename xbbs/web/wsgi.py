@@ -1,4 +1,4 @@
-# Allow invoking the coordinator as a module
+# WSGI application module for xbbs-web
 # Copyright (C) 2025  Arsen Arsenović <arsen@managarm.org>
 
 # This program is free software: you can redistribute it and/or modify
@@ -14,6 +14,11 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from . import main
+"""
+This module exposes an ``app`` attribute that WSGI servers shall treat as the application when
+invoking ``xbbs-web``.
+"""
 
-main()
+from . import create_app
+
+app = create_app()

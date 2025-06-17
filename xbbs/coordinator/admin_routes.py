@@ -1,4 +1,4 @@
-# Allow invoking the coordinator as a module
+# Routes for administration.
 # Copyright (C) 2025  Arsen Arsenović <arsen@managarm.org>
 
 # This program is free software: you can redistribute it and/or modify
@@ -14,6 +14,23 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from . import main
+"""
+This module contains implementations of routes used for administrators to prod at the
+coordinator.
+"""
 
-main()
+
+import dataclasses
+
+from aiohttp import web
+
+from .coordinator_state import get_coord_state
+
+blueprint = web.RouteTableDef()
+
+
+@blueprint.get("/admin/workers")
+async def worker_statuses(request: web.Request) -> web.Response:
+    coord = get_coord_state(request.app)
+    statuses = await coord.get_worker_load()
+    return web.json_response([dataclasses.asdict(status) for status in statuses])

@@ -1,0 +1,37 @@
+{# Project info rendering macros.
+  Copyright (C) 2025  Arsen Arsenović <arsen@managarm.org>
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU Affero General Public License as published
+  by the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU Affero General Public License for more details.
+
+  You should have received a copy of the GNU Affero General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.  #}
+
+{% macro project_info(project) %}
+  <div>
+    <p><b>Project name:</b> {{ project.project_name }}</p>
+    <p><b>Description:</b> {{ project.description }}</p>
+    {% if project.running %}<p><b>Currently running</b></p>{% endif %}
+  </div>
+{% endmacro %}
+
+{% macro build_info_manyroots(build) %}
+  <p>
+    <b>Source code revision:</b> <span class="font-mono">{{ build.revision }}</span>
+  </p>
+  <p><b>Build state:</b> {{ build.state|render_state }}</p>
+  <p>
+    Build started
+    <span title="{{ build.start_time }}">{{ build.start_time|naturaltime }}</span>
+    {% if build.end_time %}{% set took = build.end_time - build.start_time %}
+      and took <span title="{{ took }}">{{ took|naturaldelta }}</span>
+    {% endif %}
+  </p>
+{% endmacro %}

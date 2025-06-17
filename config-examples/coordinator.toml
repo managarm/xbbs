@@ -1,0 +1,47 @@
+# Example coordinator configuration, also used by the Docker dev env
+# Copyright (C) 2025  Arsen Arsenović <arsen@managarm.org>
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+http_bind = 10999
+work_root = "/home/arsen/xbci/site-local/xb2work"
+
+log = { debug = true }
+
+[projects.managarm]
+name = "Managarm (x86_64)"
+description = "Pragmatic microkernel-based OS with fully asynchronous I/O"
+git = "https://github.com/managarm/bootstrap-managarm.git"
+
+[projects.managarm.buildsystem]
+type = "xbstrap"
+distfile_path = "xbbs/x86_64"
+
+[projects.managarm.buildsystem.mirror]
+build_directory = "/home/arsen/xbci/site-local/xb2mirrors/"
+base_url = "http://localhost/xb2mirrors/"
+
+[projects.managarm.buildsystem.signing_key]
+fingerprint = "99:12:e7:7d:3c:e1:7d:53:9b:4e:23:65:b6:6a:38:81"
+public_key = "/home/arsen/xbci/site-local/projects/managarm/99:12:e7:7d:3c:e1:7d:53:9b:4e:23:65:b6:6a:38:81.plist"
+private_key = "/home/arsen/xbci/site-local/projects/managarm/99:12:e7:7d:3c:e1:7d:53:9b:4e:23:65:b6:6a:38:81.rsa"
+
+[projects.managarm_aarch64]
+name = "Managarm (aarch64)"
+description = "Pragmatic microkernel-based OS with fully asynchronous I/O, now on ARM!"
+git = "https://github.com/managarm/bootstrap-managarm.git"
+
+[projects.managarm_aarch64.buildsystem]
+type = "xbstrap"
+distfile_path = "xbbs/aarch64"

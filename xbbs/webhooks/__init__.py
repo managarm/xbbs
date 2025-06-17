@@ -1,107 +1,93 @@
-# SPDX-License-Identifier: AGPL-3.0-only
+# Start xbbs builds when receiving a webhook event
+# Copyright (C) 2025  Arsen Arsenović <arsen@managarm.org>
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 import hmac
-import os
-import os.path as path
+from urllib.parse import urljoin
 
-import msgpack
-import toml
-import valideer as V
-import zmq
-from flask import Flask, request
-from werkzeug.exceptions import (
-    BadRequest,
-    InternalServerError,
-    ServiceUnavailable,
-    Unauthorized,
-)
+import requests
+from flask import Blueprint, Flask, g, request
+from werkzeug.exceptions import BadRequest, Unauthorized
 
-import xbbs.messages as msgs
-import xbbs.util as xutils
+from xbbs.data.config import XbbsWebhooksConfig, load_and_validate_config
 
-app = Flask(__name__)
-zctx = zmq.Context.instance()
+_bp = Blueprint("root", __name__)
 
 
-@V.accepts(x=V.AnyOf("string", ["string"]))
-def _list_wrap(x):
-    if not isinstance(x, str):
-        return x
-    return [x]
+def verify_gh_sig(data: bytes, secret: str, signature: str) -> bool:
+    """
+    Given request data ``data``, and a expected secret ``secret``, returns ``True`` iff
+    ``signature`` was produced with the same secret.
 
-
-with V.parsing(required_properties=True,
-               additional_properties=V.Object.REMOVE):
-    CONFIG_VALIDATOR = V.parse({
-        "coordinator_endpoint": xutils.Endpoint(xutils.Endpoint.Side.CONNECT),
-        "?coordinator_timeout": "integer",
-        "?start_delay": "integer",
-        "?github_secret": "string",
-        "?github": V.Mapping("string", V.AdaptBy(_list_wrap))
-    })
-
-XBBS_CFG_DIR = os.getenv("XBBS_CFG_DIR", "/etc/xbbs")
-with open(path.join(XBBS_CFG_DIR, "webhooks.toml"), "r") as fcfg:
-    cfg = CONFIG_VALIDATOR.validate(toml.load(fcfg))
-
-coordinator = cfg["coordinator_endpoint"]
-cmd_timeout = cfg.get("coordinator_timeout", 1500)
-start_delay = cfg.get("start_delay", 600)
-hmac_key = cfg.get("github_secret", None)
-github_mapping = cfg.get("github", {})
-
-
-def verify_sig(data, secret, signature):
+    The ``signature`` is delivered via the ``X-Hub-Signature-256`` header by GitHub.
+    """
     s = hmac.new(secret.encode("utf-8"), data, digestmod="sha256")
     return hmac.compare_digest("sha256=" + s.hexdigest(), signature)
 
 
-with V.parsing(required_properties=True,
-               additional_properties=V.Object.REMOVE):
-    GITHUB_PAYLOAD_VALIDATOR = V.parse({
-        "repository": {
-            "full_name": "string"
-        }
-    })
+@_bp.post("/github-webhook")
+def github() -> tuple[str, int]:
+    config: XbbsWebhooksConfig = g.config
 
-
-@app.route("/github-webhook", methods=["POST"])
-def github():
-    if hmac_key:
-        sig = request.headers.get("X-Hub-Signature-256", None)
-        if not sig:
+    # First, authorization.
+    if config.github_secret:
+        signature = request.headers.get("X-Hub-Signature-256", None)
+        if not signature:
             raise Unauthorized()
-        if not verify_sig(request.data, hmac_key, sig):
+        if not verify_gh_sig(request.data, config.github_secret, signature):
             raise Unauthorized()
 
-    if request.headers.get("X-GitHub-Event", None) != "push":
+    if request.headers.get("X-Github-Event", "") != "push":
+        # We only care about pushes.
         return "", 204
 
-    try:
-        data = GITHUB_PAYLOAD_VALIDATOR.validate(request.json)
-    except V.ValidationError:
+    # Parse out the full_name.
+    body_json = request.json
+    if not isinstance(body_json, dict):
+        raise BadRequest()
+    repository = body_json.get("repository", None)
+    if not isinstance(repository, dict):
+        raise BadRequest()
+    full_name = repository.get("full_name", None)
+    if not isinstance(full_name, str):
         raise BadRequest()
 
-    projects = github_mapping.get(data["repository"]["full_name"], None)
-    if not projects:
+    project_slugs = config.github_repo_to_projects.get(full_name, None)
+    if project_slugs is None:
         return "mapping not found", 404
 
-    with zctx.socket(zmq.REQ) as conn:
-        conn.set(zmq.LINGER, 0)
-        conn.connect(coordinator)
-        for x in projects:
-            conn.send_multipart([b"build", msgs.BuildMessage(
-                project=x,
-                delay=start_delay,
-                incremental=True
-            ).pack()])
-            if not conn.poll(cmd_timeout):
-                raise ServiceUnavailable()
-            (code, res) = conn.recv_multipart()
+    for project in project_slugs:
+        requests.get(
+            urljoin(config.coordinator_url, project), params=dict(delay=config.start_delay)
+        )
 
-    if len(code) != 3:
-        raise InternalServerError()
-    code = int(code.decode("us-ascii"))
-    if code == 204:
-        return "success"
-    res = msgpack.loads(res)
-    return f"coordinator error: {code} {res}", code
+    return "starting", 200
+
+
+def load_webhooks_config() -> None:
+    """Loads the ``xbbs-webhook`` configuration into ``g.config``."""
+    g.config = load_and_validate_config("webhooks.toml", XbbsWebhooksConfig)
+
+
+def create_app() -> Flask:
+    """
+    Create a WSGI application for ``xbbs.webhooks``.
+    """
+    app = Flask(__name__)
+    app.register_blueprint(_bp)
+
+    app.before_request(load_webhooks_config)
+
+    return app

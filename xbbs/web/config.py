@@ -1,4 +1,4 @@
-# Allow invoking the coordinator as a module
+# A few config helpers.
 # Copyright (C) 2025  Arsen Arsenović <arsen@managarm.org>
 
 # This program is free software: you can redistribute it and/or modify
@@ -14,6 +14,14 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from . import main
+"""This module contains helpers for dealing with ``xbbs-web`` configuration."""
 
-main()
+import typing as T
+
+from flask import current_app
+
+
+def get_coordinator_work_root() -> str:
+    """Get the coordinator work root directory."""
+    # Verified in __init__.py:create_app
+    return T.cast(str, current_app.config.get("COORDINATOR_WORK_ROOT"))

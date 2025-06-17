@@ -1,4 +1,4 @@
-# Allow invoking the coordinator as a module
+# A task for the task queue.
 # Copyright (C) 2025  Arsen Arsenović <arsen@managarm.org>
 
 # This program is free software: you can redistribute it and/or modify
@@ -14,6 +14,20 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from . import main
 
-main()
+from dataclasses import dataclass
+
+from xbbs.data.messages.tasks import TaskResponse
+
+
+@dataclass
+class EnqueuedTask:
+    """Elements of the outgoing task queue."""
+
+    task: TaskResponse
+    capabilities: set[str]
+
+    build_dir: str
+    """
+    Build directory that owns this execution.  Used to update its status to ``RUNNING``.
+    """

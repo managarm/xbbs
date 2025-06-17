@@ -1,2 +1,0 @@
-job_endpoint = "tcp://coordinator:16001"
-capabilities = ["kvm", "fuse"]

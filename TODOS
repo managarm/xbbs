@@ -1,6 +1,0 @@
-add xbbs-cli fail <proj>
-additional hooks
-address todos and clean up code
-docstrings for most functions
-figure out how to shut down coordinator and worker gracefully
-CLI access (for automation)

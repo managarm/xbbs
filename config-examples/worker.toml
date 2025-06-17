@@ -1,0 +1,4 @@
+coordinator_url = "http://localhost:10999/"
+work_root = "/home/arsen/xbci/site-local/xb2builder/"
+log = { debug = true }
+capabilities = ["kvm", "test-images", "builder", "!builder"]

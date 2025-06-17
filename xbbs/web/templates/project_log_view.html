@@ -1,0 +1,72 @@
+{# Project log view page.
+  Copyright (C) 2025  Arsen Arsenović <arsen@managarm.org>
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU Affero General Public License as published
+  by the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU Affero General Public License for more details.
+
+  You should have received a copy of the GNU Affero General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.  #}
+{% extends "base.html" %}
+{% set project = g.status.projects[slug] %}
+{% block title %}{{ log_name }} logs{% endblock %}
+
+{% macro exec_brief_status(execution) %}
+  <p>
+    <b>State:</b> {{ execution.state|render_state }}
+    {% if execution.builder is not none %}
+      on builder <code>{{ execution.builder }}</code>
+    {% endif %}
+  </p>
+  <p>
+    Job prepared and queued
+    <span title="{{ execution.queue_time }}">
+      {{ execution.queue_time|humanize_as_delta }}
+    </span>
+  </p>
+  {% if execution.done_time %}
+    <p>
+      Job finished
+      <span title="{{ execution.done_time }}">
+        {{ execution.done_time|humanize_as_delta }}
+      </span>
+      {% if execution.run_time %}
+        and took
+        <span title="{{ execution.run_time }}s">
+          {{ execution.run_time|humanize_seconds_delta }}
+        </span>
+      {% endif %}
+    </p>
+  {% endif %}
+{% endmacro %}
+
+{% set raw_log_url = url_for("project.raw_log", slug=slug, build=build, execution=raw_exec) %}
+{% block body %}
+  <h1>{{ log_name }} logs</h1>
+  {%- if execution -%}<div>{{ exec_brief_status(execution) }}</div>{%- endif -%}
+  <div><a href="{{ raw_log_url }}">View raw log</a></div>
+  <div>
+    <a href="{{ url_for("project.log_list", slug=slug, build=build) }}">Back to log overview</a>
+  </div>
+  <hr />
+  <noscript id="raw-log-frame" data-log-url="{{ raw_log_url }}">
+    <iframe
+      class="grow-1"
+      src="{{ raw_log_url }}">
+      Logs failed to load
+    </iframe>
+  </noscript>
+{% endblock %}
+
+{% block body_end %}
+  <script src="https://unpkg.com/@xterm/xterm@5.5.0/lib/xterm.js"></script>
+  <script src="https://unpkg.com/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+  <link href="https://unpkg.com/@xterm/xterm@5.5.0/css/xterm.css" rel="stylesheet" />
+  <script src="/static/log_view.js"></script>
+{% endblock %}

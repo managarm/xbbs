@@ -1,0 +1,180 @@
+/* xbbs-web stylesheet.
+   Copyright (C) 2025  Arsen Arsenović <arsen@managarm.org>
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU Affero General Public License as published
+   by the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU Affero General Public License for more details.
+
+   You should have received a copy of the GNU Affero General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>. */
+
+:root {
+    /* Stolen from TailwindCSS.  */
+    --spacing: 4px;
+    --color-red-500: oklch(63.7% 0.237 25.331);
+    --color-green-500: oklch(72.3% 0.219 149.579);
+    --color-gray-200: oklch(0.928 0.006 264.531);
+    --color-indigo-500: oklch(0.585 0.233 277.117);
+    --color-blue-500: oklch(0.623 0.214 259.815);
+    --color-gray-500: oklch(0.551 0.027 264.364);
+    --color-neutral-900: oklch(20.5% 0 0);
+
+    --color-background: #fefefe;
+    --color-foreground: #333;
+    --color-inverted-background: #111;
+    --color-inverted-foreground: #ddd;
+    --color-border: var(--color-inverted-background);
+    --color-table-hl: var(--color-gray-200);
+    --color-highlight-flash: #ffee8c;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+	--color-background: #111;
+	--color-foreground: #ddd;
+	--color-inverted-background: #000;
+	--color-inverted-foreground: #ddd;
+	--color-border: #ddd;
+	--color-table-hl: var(--color-neutral-900);
+	--color-highlight-flash: #615a35;
+    }
+}
+
+html, body {
+    height: 100%;
+    font-family: sans-serif;
+    font-size: 14px;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+    color: var(--color-foreground);
+    background-color: var(--color-background);
+    min-height: 100vh;
+}
+footer, header {
+    vertical-align: middle;
+    background-color: var(--color-inverted-background);
+    padding: 1em 0.5em;
+    color: var(--color-inverted-foreground);
+}
+
+header {
+    font-family: monospace;
+}
+
+footer {
+    text-align: center;
+    font-size: small;
+}
+
+a {
+    text-decoration: none;
+    color: var(--color-blue-500);
+}
+
+a:visited {
+    color: var(--color-indigo-500);
+}
+
+.grow-1 {
+    flex-grow: 1;
+}
+
+.flex {
+    display: flex;
+}
+
+.p-3 {
+    padding: calc(var(--spacing) * 3);
+}
+
+.mx-3 {
+    margin: 0 calc(var(--spacing) * 3);
+}
+
+.mx-1 {
+    margin: 0 calc(var(--spacing));
+}
+
+
+.flex-col {
+    flex-direction: column;
+}
+
+.flex-row {
+    flex-direction: row;
+}
+
+.divide-y > :not(:last-child) {
+    border-top-width: 0px;
+    border-bottom-width: 1px;
+    border-bottom-style: solid;
+    border-bottom-color: var(--color-border);
+}
+
+.font-mono {
+    font-family: 'monospace';
+}
+
+.list-none {
+    list-style-type: none;
+}
+
+ul {
+    padding-inline-start: 0;
+}
+
+.terminal.xterm {
+    position: absolute; /* Take it out of flow context.  */
+}
+
+@keyframes flash {
+    from {
+	background: transparent;
+    }
+    50% {
+	background: var(--color-highlight-flash);
+    }
+    to {
+	background: transparent;
+    }
+}
+
+.target\:flash:target {
+    animation: flash 1s ease-in-out;
+}
+
+table.pretty-table > tbody > tr:has(th) {
+    background-color: var(--color-table-hl);
+}
+
+.text-red-500 {
+    color: var(--color-red-500);
+}
+
+.text-green-500 {
+    color: var(--color-green-500);
+}
+
+.align-top {
+    vertical-align: top;
+}
+
+table.pretty-table tr:nth-child(odd of :has(td)) {
+    background-color: var(--color-table-hl);
+}
+
+.icon {
+    vertical-align: middle;
+    display: inline-block;
+}

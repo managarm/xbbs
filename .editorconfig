@@ -1,0 +1,17 @@
+root = true
+
+[*]
+# Stop misconfigured editors from messing up files.
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{py,js}]
+indent_size = 4
+indent_style = space
+# Per Black convention.
+max_line_length = 99
+
+[*.html]
+indent_size = 2
+indent_style = space
+max_line_length = 99

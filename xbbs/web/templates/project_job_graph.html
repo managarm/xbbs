@@ -1,0 +1,129 @@
+{# Project job graph page.
+  Copyright (C) 2025  Arsen Arsenović <arsen@managarm.org>
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU Affero General Public License as published
+  by the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU Affero General Public License for more details.
+
+  You should have received a copy of the GNU Affero General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.  #}
+{% extends "base.html" %}
+{% set project = g.status.projects[slug] %}
+{% block title %}Jobs in build {{ build }} of {{ project.project_name }}{% endblock %}
+
+{% macro _artifact(artifact) %}
+  {% if artifact.state.name in ["RECEIVED", "UP_TO_DATE"] %}
+    <a
+      class="font-mono"
+      href="{{
+              url_for(
+                "project.get_repo_file",
+                slug=slug,
+                build=build,
+                repo_file=artifact.repo_path
+              )
+            }}">
+      {{ artifact.identifier }}
+    </a>
+  {% else %}
+    <span class="font-mono">{{ artifact.identifier }}</span>
+  {% endif %}
+  ({{ artifact.state|render_state }})
+{% endmacro %}
+
+{% macro show_job(artifacts, job) %}
+  <tr>
+    <td class="align-top p-3"> {# Summary #}
+      {% for prod in job.products %}
+        <a id="product-{{ prod }}"></a>
+      {% endfor %}
+      <code>{{ job.identifier }}</code>
+      <div><strong>{{ job.state|render_state }}</strong></div>
+      {% if job.is_unstable %}<p>⚠ This job is considered unstable</p>{% endif %}
+      <a href="{{ url_for("project.log_list", slug=slug, build=build, node=job.identifier) }}">
+        [view executions]
+      </a>
+    </td>
+    <td class="flex flex-col p-3"> {# Deps, prods #}
+      {% if job.products %}
+        <div>
+          <h4>Products</h4>
+          <ul class="list-none">
+            {% for product in job.products %}
+              <li>{{ _artifact(artifacts[product]) }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+      {% if job.dependencies %}
+        <div>
+          <h4>Dependencies</h4>
+          <ul class="list-none">
+            {% for dep in job.dependencies %}
+              <li>
+                <a
+                  title="Jump to producing node"
+                  href="#product-{{ dep }}"
+                  class="font-mono">
+                  {{ dep }}
+                </a>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+    </td>
+  </tr>
+{% endmacro %}
+
+{% import "project_macros.html" as project_utils %}
+
+{% block body %}
+  <h1>Jobs in build {{ build }} of {{ project.project_name }}</h1>
+  <div>{{ project_utils.build_info_manyroots(build_obj) }}</div>
+  <a href="{{ url_for("project.history_and_overview", slug=slug, build=build, _anchor="build-" + build) }}">
+    Back to build history
+  </a>
+
+  {% if job_groups %}
+    <div>
+      Jump to:
+      {% for group in job_groups %}
+        <a
+          href="#state-{{ group.name }}">
+          {{ group|render_state_colorless }}
+        </a>
+        ({{ job_groups[group]|length }}){% if not loop.last %}, {% endif -%}
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <table class="p-3 pretty-table">
+    <thead>
+      <tr>
+        <th>Job summary</th>
+        <th>Artifacts</th>
+      </tr>
+    </thead>
+    <tdata>
+      {% for (group, jobs) in job_groups.items() %}
+        <tr id="state-{{ group.name }}">
+          <th colspan="2">{{ group|render_state }}</th>
+        </tr>
+        {% for job in jobs %}
+          {{ show_job(artifacts, job) }}
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td colspan="2" class="text-red-500">No jobs in graph.</td>
+        </tr>
+      {% endfor %}
+    </tdata>
+  </table>
+{% endblock %}

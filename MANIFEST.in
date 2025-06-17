@@ -1,4 +1,0 @@
-recursive-include xbbs/web/templates *
-recursive-include xbbs/web/static *
-recursive-include xbbs/sql *
-include COPYING README.rst

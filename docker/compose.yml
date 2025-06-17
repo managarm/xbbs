@@ -33,7 +33,7 @@ services:
     volumes:
       - src:/src
       - projects:/projects
-      - ../coordinator.toml:/etc/xbbs/coordinator.toml.in:ro
+      - ../config-examples/coordinator.toml:/etc/xbbs/coordinator.toml.in:ro
     environment:
       XBBS_CMD: |2
         set -xe
@@ -72,7 +72,7 @@ services:
       dockerfile: docker/Dockerfile-devrt
     volumes:
       - src:/src
-      - ../worker.toml:/etc/xbbs/worker.toml:ro
+      - ../config-examples/worker.toml:/etc/xbbs/worker.toml:ro
       - projects:/projects
     environment:
       XBBS_CMD: exec xbbs-worker

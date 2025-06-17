@@ -1,4 +1,4 @@
-# Allow invoking the coordinator as a module
+# Constants.
 # Copyright (C) 2025  Arsen Arsenović <arsen@managarm.org>
 
 # This program is free software: you can redistribute it and/or modify
@@ -14,6 +14,5 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from . import main
-
-main()
+MAX_NODE_RETRIES = 3
+"""How many times to attempt to rebuild an abnormally-failed node?"""

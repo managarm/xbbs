@@ -1,4 +1,4 @@
-# Allow invoking the coordinator as a module
+# String utilities.
 # Copyright (C) 2025  Arsen Arsenović <arsen@managarm.org>
 
 # This program is free software: you can redistribute it and/or modify
@@ -14,6 +14,24 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from . import main
+"""
+This module contains various utility functions for dealing with strings.
+"""
 
-main()
+
+def fuse_with_slashes(first: str, *args: str) -> str:
+    """
+    Merges multiple strings such that there is exactly one slash between all of them.
+    If the strings already contained slashes inbetween, they're collapsed down to one
+    slash.
+    """
+    if len(args) == 0:
+        return first
+
+    first = first.rstrip("/")
+    last = args[-1].lstrip("/")
+    if len(args) == 1:
+        return f"{first}/{last}"
+
+    middle = "/".join(list(arg.strip("/") for arg in args[:-1]))
+    return f"{first}/{middle}/{last}"

@@ -1,54 +1,55 @@
-{# SPDX-License-Identifier: AGPL-3.0-only #}
-{%- extends "base.html" %}
-{%- import "macros.html" as macros %}
-{%- block title %}Overview{%- endblock %}
-{%- block col1 %}
-	<h3>Project list</h3>
-	<table id="project-list" class="color-rows">
-{%- for name, item in projects.items() %}
-		<tr class="project-item {{ item.classes|join(' ') }}">
-			<td class="project-name">
-				{{ name }}<br>
-				<a href="{{ url_for("package_list", proj=name) }}">
-					[pkgs]
-				</a>
-{%- if item.rolling_pkgs %}
-				<a href="{{ url_for("package_list", ts="rolling", proj=name) }}">
-					[rolling pkgs]
-				</a>
-{%- endif %}
-			</td>
-			<td class="project-desc">
-				{{ item.description }}
-			</td>
-		</tr>
-{%- endfor %}
-	</table>
-{%- endblock %}
-{%- block col2 %}
-	<h3>Recent build history</h3>
-	<ul id="history">
-{%- for build in history %}
-	<li class="build-item {{ build.classes|join(' ') }}">
-		<strong>{{ build.project }},
-		started {{ build.timestamp|humanizeiso }}</strong>
-{%- if build.jobs %}
-		<a href="{{ build.jobs }}">[jobs]</a>
-{%- endif %}
-{%- if build.log %}
-		<a href="{{ build.log }}">[logs]</a>
-{%- endif %}
-{%- if build.pkgrepo %}
-		<a href="{{ build.pkgrepo }}">[pkgs]</a>
-{%- endif %}
-{%- if build.filerepo %}
-		<a href="{{ build.filerepo }}">[files]</a>
-{%- endif %}
-		<br>
-		{{ macros.build_status(build) }}
-	</li>
-{%- endfor %}
-	</ul>
-{%- endblock %}
-{# vim: ft=htmldjango :
-#}
+{# Swarm status overview.
+   Copyright (C) 2025  Arsen Arsenović <arsen@managarm.org>
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU Affero General Public License as published
+   by the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU Affero General Public License for more details.
+
+   You should have received a copy of the GNU Affero General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  #}
+{% extends "base.html" %}
+{% block title %}Overview{% endblock %}
+
+{% import "icons.html" as icons %}
+{% block body %}
+  <div>
+    <h1>Projects</h1>
+
+    <div class="divide-y flex flex-col">
+      {% for (slug, project) in g.status.projects.items() %}
+        <div class="p-3 {{ project.classes|join(" ") }}">
+          <a href="{{ url_for("project.history_and_overview", slug=slug) }}">
+            {{ project.project_name }}
+          </a>
+          {% if project.running %}{{ icons.pickaxe(class="icon") }}{% endif %}
+          <br>
+          <p>{{ project.description }}</p>
+        </div>
+      {% else %}
+        No projects configured.
+      {% endfor %}
+    </div>
+  </div>
+
+  <div>
+    <h1>Workers</h1>
+
+    <div class="divide-y flex flex-col">
+      {% for worker in g.status.workers %}
+        <div class="p-3">
+          <span class="font-mono">{{ worker.hostname }}</span>
+          (load: {{ worker.load_avg|join(", ") }})<br>
+          Last seen {{ worker.last_seen|humanize_as_delta }}
+        </div>
+      {% else %}
+        No workers running!  Yell at the admin.
+      {% endfor %}
+    </div>
+  </div>
+{% endblock %}

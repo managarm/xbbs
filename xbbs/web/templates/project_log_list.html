@@ -1,0 +1,57 @@
+{# Project log overview page.
+  Copyright (C) 2025  Arsen Arsenović <arsen@managarm.org>
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU Affero General Public License as published
+  by the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU Affero General Public License for more details.
+
+  You should have received a copy of the GNU Affero General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.  #}
+{% extends "base.html" %}
+{% import 'project_log_view.html' as log_view %}
+{% import "project_macros.html" as proj_macros %}
+{% set project = g.status.projects[slug] %}
+{% block title %}Logs for build {{ build }} of {{ project.project_name }}{% endblock %}
+{% block body %}
+  <div>
+    <h1>Logs for {% if node_id is not none %}{{ node_id }} in {% endif %} build {{ build }} of {{ project.project_name }}</h1>
+    <div>
+      {{ proj_macros.build_info_manyroots(build_obj) }}
+    </div>
+    <a href="{{ url_for("project.history_and_overview", slug=slug, build=build, _anchor="build-" + build) }}">
+      Back to build history
+    </a>
+    <div class="divide-y flex flex-col">
+      {% if node_id is none %}
+      <div class="p-3">
+        <h2>Coordinator log</h2>
+        <a href="{{ url_for("project.show_log", slug=slug, build=build, execution="coordinator") }}">
+          Show log
+        </a>
+      </div>
+      {% endif %}
+      {% for execution in all_executions|reverse if execution.state.name != "IN_QUEUE" %}
+        <div class="p-3">
+          <h2>
+            Execution <span class="font-mono">{{ execution.id }}</span> of {{ execution.node_id }}
+          </h2>
+          {{ log_view.exec_brief_status(execution) }}
+          <a href="{{ url_for("project.show_log", slug=slug, build=build, execution=execution.id) }}">
+            Show log
+          </a>
+          </h2>
+        </div>
+      {% else %}
+        <div class="p-3">
+          No logs found.
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+{% endblock %}

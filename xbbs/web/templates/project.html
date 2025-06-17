@@ -1,0 +1,49 @@
+{# Project status and history page.
+  Copyright (C) 2025  Arsen Arsenović <arsen@managarm.org>
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU Affero General Public License as published
+  by the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU Affero General Public License for more details.
+
+  You should have received a copy of the GNU Affero General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.  #}
+{% extends "base.html" %}
+{% set project = g.status.projects[slug] %}
+{% block title %}{{ project.project_name }}{% endblock %}
+
+{% import "project_macros.html" as proj_macros %}
+
+{% block body %}
+  {{ proj_macros.project_info(project) }}
+  <div>
+    <h1>Build history</h1>
+    <div class="divide-y flex flex-col">
+      {% for (build_id, build) in builds %}
+        <div class="p-3 target:flash" id="build-{{ build_id }}">
+          <h2>{{ build_id }}</h2>
+          {{ proj_macros.build_info_manyroots(build) }}
+          <ul class="flex flex-row">
+            <li class="list-none">
+              <a class="mx-1" href="{{ url_for("project.log_list", slug=slug, build=build_id) }}">
+                [logs]
+              </a>
+            </li>
+            <li class="list-none">
+              <a class="mx-1" href="{{ url_for("project.job_graph", slug=slug, build=build_id) }}">
+                [jobs]
+              </a>
+            </li>
+          </ul>
+        </div>
+      {% else %}
+        <div><strong>No builds yet.</strong></div>
+      {% endfor %}
+    </div>
+  </div>
+{% endblock %}

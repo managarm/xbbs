@@ -1,34 +1,42 @@
-{# SPDX-License-Identifier: AGPL-3.0-only #}
 <!DOCTYPE html>
-<html lang="en">
-<head>
-	<title>{%- block title %}{% endblock %} - xbbs @ {{ host }}</title>
-	<link rel="stylesheet" href="/static/base_style.css">
-	<link rel="icon" size="any" type="image/svg+xml"
-		href="/static/xbbs.svg">
-	<meta name="viewport" content="width=device-width, initial-scale=1" />
-</head>
-<body>
-	<header>
-		<a href="{{ url_for("overview") }}">xbbs
-		@ {{ host }}</a> (load: {{ load|join(", ") }})
-		{%- block head_extra %}{%- endblock %}
-	</header>
-	{%- block body %}
-	<div class="container">
-		<div id="col1">{% block col1 %}{% endblock %}</div>
-		<div id="col2">{%- block col2 %}{% endblock %}</div>
-	</div>
-	{%- endblock %}
-	<footer>
-		xbbs &copy; 2020&nbsp;&nbsp;Arsen Arsenović<br>
-		xbbs is Free Software, licensed under the GNU Affero General
-		Public License, version 3.
-		<a href="https://github.com/managarm/xbbs">
-			Source code is available here
-		</a>
-	</footer>
-</body>
+<!-- A read-only web frontend for xbbs.
+     Copyright (C) 2025  Arsen Arsenović <arsen@managarm.org>
+
+     This program is free software: you can redistribute it and/or modify
+     it under the terms of the GNU Affero General Public License as published
+     by the Free Software Foundation, either version 3 of the License, or
+     (at your option) any later version.
+
+     This program is distributed in the hope that it will be useful,
+     but WITHOUT ANY WARRANTY; without even the implied warranty of
+     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+     GNU Affero General Public License for more details.
+
+     You should have received a copy of the GNU Affero General Public License
+     along with this program.  If not, see <http://www.gnu.org/licenses/>. -->
+
+<html>
+  <head>
+    <title>{% block title %}{% endblock %} - xbbs @ {{ g.status.hostname }}</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" size="any" type="image/svg+xml" href="/static/xbbs.svg">
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+  <body>
+    <header>
+      <a href="{{ url_for("overview.overview") }}">xbbs @ {{ g.status.hostname }}</a>
+      (load: {{ g.status.load_avg|join(", ") }})
+    </header>
+
+    <div class="grow-1 flex flex-col p-3">{% block body %}{% endblock %}</div>
+
+    <footer>
+      xbbs &copy; 2025&nbsp;&nbsp;Arsen Arsenović<br>
+      xbbs is Free Software, licensed under the GNU AGPL3+.
+      <a href="https://github.com/managarm/xbbs">
+	Source code is available here
+      </a>
+    </footer>
+    {% block body_end %}{% endblock %}
+  </body>
 </html>
-{# vim: ft=htmldjango :
-#}
