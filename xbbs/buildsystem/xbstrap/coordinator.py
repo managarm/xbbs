@@ -44,6 +44,14 @@ if T.TYPE_CHECKING:
     from xbbs.utils.logging.build_logger import BuildLogger
 
 
+# Disgusting hack.  Remove later, when Debian gets Python 3.14
+copytree_cfr = shutil.copytree
+if not hasattr(shutil, "_USE_CP_COPY_FILE_RANGE"):
+    import xbbs.utils.backports.shutil_314 as shutil_314
+
+    copytree_cfr = shutil_314.copytree
+
+
 class XbstrapCoordinatorBuildSystem(CoordinatorBuildSystem):
     """
     Coordinator-side xbbs build system implementation for xbstrap.
@@ -91,7 +99,7 @@ class XbstrapCoordinatorBuildSystem(CoordinatorBuildSystem):
         for artifact_type in ("packages", "tools"):
             try:
                 source = path.join(self.previous_repo_directory, artifact_type)
-                shutil.copytree(
+                copytree_cfr(
                     source,
                     path.join(self.repo_directory, artifact_type),
                     # The package repositories contain links to the noarch repositories.
