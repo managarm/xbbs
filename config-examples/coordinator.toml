@@ -15,7 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 http_bind = 10999
-work_root = "/home/arsen/xbci/site-local/xb2work"
+work_root = "/work"
 
 log = { debug = true }
 
@@ -28,20 +28,12 @@ git = "https://github.com/managarm/bootstrap-managarm.git"
 type = "xbstrap"
 distfile_path = "xbbs/x86_64"
 
-[projects.managarm.buildsystem.mirror]
-build_directory = "/home/arsen/xbci/site-local/xb2mirrors/"
-base_url = "http://localhost/xb2mirrors/"
+# TODO(arsen): git-http-backend in a container
+# [projects.managarm.buildsystem.mirror]
+# build_directory = "/home/arsen/xbci/site-local/xb2mirrors/"
+# base_url = "http://localhost/xb2mirrors/"
 
 [projects.managarm.buildsystem.signing_key]
-fingerprint = "99:12:e7:7d:3c:e1:7d:53:9b:4e:23:65:b6:6a:38:81"
-public_key = "/home/arsen/xbci/site-local/projects/managarm/99:12:e7:7d:3c:e1:7d:53:9b:4e:23:65:b6:6a:38:81.plist"
-private_key = "/home/arsen/xbci/site-local/projects/managarm/99:12:e7:7d:3c:e1:7d:53:9b:4e:23:65:b6:6a:38:81.rsa"
-
-[projects.managarm_aarch64]
-name = "Managarm (aarch64)"
-description = "Pragmatic microkernel-based OS with fully asynchronous I/O, now on ARM!"
-git = "https://github.com/managarm/bootstrap-managarm.git"
-
-[projects.managarm_aarch64.buildsystem]
-type = "xbstrap"
-distfile_path = "xbbs/aarch64"
+fingerprint = "@FINGERPRINT@"
+public_key = "/work/keys/@FINGERPRINT@.plist"
+private_key = "/work/keys/@FINGERPRINT@.rsa"

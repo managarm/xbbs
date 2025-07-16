@@ -1,4 +1,5 @@
-coordinator_url = "http://localhost:10999/"
-work_root = "/home/arsen/xbci/site-local/xb2builder/"
+coordinator_url = "http://coordinator:10999/"
+work_root = "/work"
 log = { debug = true }
-capabilities = ["kvm", "test-images", "builder", "!builder"]
+# All caps managarm currently uses.
+capabilities = ["kvm", "test-images", "builder"]

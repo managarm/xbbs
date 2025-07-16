@@ -19,19 +19,15 @@ RUN python3 -m venv /venv
 
 # Files from the sources toplevel needed to do the initial editable install
 # into a virtualenv.
-ADD MANIFEST.in \
-    pyproject.toml \
-    setup.py \
-    xbbs-project-rotate \
+ADD pyproject.toml \
     xbps-keygen \
+    README.rst \
     /src
 # Separate step because Docker copies contents
 ADD xbbs /src/xbbs
 
-# Patched Valideer and y4 (the former is a hack :/  the latter not a dependency
-# of anything except managarm-bootstrap)
+# bootstrap-managarm uses y4
 RUN . /venv/bin/activate \
-    && pip install https://github.com/ArsenArsen/valideer/archive/cec1755914c21628706bb1392e0c61c6c600318e.tar.gz \
     && pip install y4
 RUN . /venv/bin/activate && pip install -e /src/.'[history]'
 

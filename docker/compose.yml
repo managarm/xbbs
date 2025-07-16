@@ -6,39 +6,23 @@
 name: xbbs-dev
 
 services:
-  psql:
-    restart: always
-    image: docker.io/postgres:16
-    volumes:
-      - psql:/var/lib/postgresql/data
-      - ../xbbs/sql/:/docker-entrypoint-initdb.d:ro
-    environment:
-      POSTGRES_PASSWORD: awfulpass
-    healthcheck:
-      test: "pg_isready -d postgres -U postgres"
-      interval: 3s
-      start_period: 3s
-
   coordinator:
     image: xbbs-devrt
     pull_policy: never
     build:
       context: ../
       dockerfile: docker/Dockerfile-devrt
-    depends_on:
-      psql:
-        condition: service_healthy
     ports:
-      - 16999:16999/tcp
+      - 10999:10999/tcp
     volumes:
       - src:/src
-      - projects:/projects
+      - work:/work
       - ../config-examples/coordinator.toml:/etc/xbbs/coordinator.toml.in:ro
     environment:
       XBBS_CMD: |2
         set -xe
         (
-          cd /projects/
+          cd /work/
           mkdir -p keys
           cd keys
           set -- *
@@ -51,18 +35,10 @@ services:
             printf 'what?  two keys?'
             exit 1
           fi
-          for project in managarm managarm_aarch64; do # unfortunate ik
-            mkdir -p ../"$$project"
-            cp * ../"$$project" # contents known to be OK
-          done
           sed "s/@FINGERPRINT@/$$fingerprint/g" /etc/xbbs/coordinator.toml.in \
             >/etc/xbbs/coordinator.toml
         )
         exec xbbs-coordinator
-      PGHOST: psql
-      PGDATABASE: postgres
-      PGUSER: postgres
-      PGPASSWORD: awfulpass
 
   worker:
     image: xbbs-devrt
@@ -73,9 +49,9 @@ services:
     volumes:
       - src:/src
       - ../config-examples/worker.toml:/etc/xbbs/worker.toml:ro
-      - projects:/projects
+      - work:/work
     environment:
-      XBBS_CMD: exec xbbs-worker
+      XBBS_CMD: set -xe; mkdir -p /work; exec xbbs-worker
     # TODO(arsen): will need to make this less aggressive before utilizing
     # docker in prod
     privileged: true
@@ -89,21 +65,15 @@ services:
       context: ../
       dockerfile: docker/Dockerfile-devrt
     volumes:
-      - projects:/projects
+      - work:/work
     environment:
-      XBBS_CMD: FLASK_ENV=development XBBS_COORDINATOR_ENDPOINT=tcp://coordinator:16999 XBBS_PROJECT_BASE=/projects/ exec gunicorn --reload -k gevent xbbs.web:app --bind 0.0.0.0:8000
-    develop:
-      watch:
-        - action: sync+restart
-          path: ../xbbs/web
-          target: /src/xbbs/web
+      XBBS_CMD: FLASK_APP=xbbs.web.wsgi FLASK_ENV=development XBBS_COORDINATOR_URL=http://coordinator:10999/ XBBS_COORDINATOR_WORK_ROOT=/work/ exec flask run --debug
 
 volumes:
-  psql:
   src:
     driver: local
     driver_opts:
       type: overlay
       o: lowerdir=${PWD}/..,upperdir=${PWD}/src-ov-upper,workdir=${PWD}/src-ov-work
       device: overlay
-  projects:
+  work:
