@@ -300,7 +300,10 @@ class XbbsWebhooksConfig(BaseModel):
     """
 
 
-def load_and_validate_config[M: BaseModel](config_file: str, model: type[M]) -> M:
+Model = T.TypeVar("Model", bound=BaseModel)
+
+
+def load_and_validate_config(config_file: str, model: type[Model]) -> Model:
     """
     Validate and load a config file as the given model.
 

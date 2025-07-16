@@ -39,6 +39,9 @@ if T.TYPE_CHECKING:
 
     from .project import Build
 
+# TypeVars (remove this blot when Debian gets 3.12)
+R = T.TypeVar("R")
+
 
 class CoordinatorState:
     """
@@ -75,7 +78,7 @@ class CoordinatorState:
         self._execution_lock: T.Final = asyncio.Lock()
         self._execution_table: T.Final = dict[str, Execution]()
 
-    def add_build_task[R](self, task: T.Coroutine[T.Any, T.Any, R]) -> asyncio.Task[R]:
+    def add_build_task(self, task: T.Coroutine[T.Any, T.Any, R]) -> asyncio.Task[R]:
         """
         Saves a task into the build task group, so that it may be shut down gracefully.
         """

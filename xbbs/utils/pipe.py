@@ -24,7 +24,7 @@ import typing as T
 
 
 @contextlib.asynccontextmanager
-async def pipe_text_reader(fd: int | T.TextIO) -> T.AsyncGenerator[asyncio.StreamReader]:
+async def pipe_text_reader(fd: int | T.TextIO) -> T.AsyncGenerator[asyncio.StreamReader, None]:
     """Get a :py:class:`asyncio.StreamReader` for a pipe."""
     if isinstance(fd, int):
         fd = open(fd, "rt")

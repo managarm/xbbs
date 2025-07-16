@@ -18,6 +18,8 @@
 A few utilities for web-related tasks.
 """
 
+import typing as T
+
 from flask import request
 
 
@@ -40,7 +42,10 @@ def get_page_size() -> int:
         return 10
 
 
-def extract_current_page[T](dataset: list[T]) -> list[T]:
+Element = T.TypeVar("Element")
+
+
+def extract_current_page(dataset: list[Element]) -> list[Element]:
     page = get_page_number()
     limit = get_page_size()
     return dataset[page * limit : (page + 1) * limit]

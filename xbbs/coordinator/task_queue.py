@@ -29,7 +29,10 @@ class CapabilityHolder(T.Protocol):
     capabilities: set[str]
 
 
-class TaskQueue[T: CapabilityHolder]:
+Element = T.TypeVar("Element", bound=CapabilityHolder)
+
+
+class TaskQueue(T.Generic[Element]):
     """
     A queue of tasks with capabilities attached to them.  Allows dequeue-ing a task
     based on capabilities of the caller, in a mostly fair order.
@@ -39,11 +42,11 @@ class TaskQueue[T: CapabilityHolder]:
 
     def __init__(self) -> None:
         self._lock = asyncio.Lock()
-        self._queue = list[T]()
+        self._queue = list[Element]()
         self._new_task = asyncio.Condition(self._lock)
         """Notified (all) when a task is added."""
 
-    async def enqueue(self, task: T) -> None:
+    async def enqueue(self, task: Element) -> None:
         """
         Adds a task to the queue, waking up a worker if it is capable of processing
         it.
@@ -52,7 +55,7 @@ class TaskQueue[T: CapabilityHolder]:
             self._queue.append(task)
             self._new_task.notify_all()
 
-    async def dequeue(self, available_caps: Container[str]) -> T:
+    async def dequeue(self, available_caps: Container[str]) -> Element:
         """Get a task which can be executed on this worker."""
         async with self._lock:
             while True:
