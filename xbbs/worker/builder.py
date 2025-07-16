@@ -49,7 +49,8 @@ async def build_task(
         await xbu_proc.do_command(log_io, *args, cwd=cwd)
 
     # Clone sources.
-    await _cmd(src_dir, "git", "clone", "--revision=" + task.revision, task.git, ".")
+    await _cmd(src_dir, "git", "clone", task.git, ".")
+    await _cmd(src_dir, "git", "checkout", task.revision)
 
     builder = create_build_system_factory(task.buildsystem).create_worker_build_for_task(
         log_io=log_io,
