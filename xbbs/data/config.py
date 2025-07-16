@@ -74,6 +74,69 @@ class WorkerConfig(BaseModel):
     """
 
 
+PortNumber: T.TypeAlias = T.Annotated[int, Field(ge=1, le=65535)]
+"""
+Integers, annotated to be Pydantic-validated to a range.
+"""
+
+
+class IPBindLocation(BaseModel):
+    """
+    Host and port pair to listen as an IP stream socket.
+    """
+
+    host: str
+    """Host to bind to."""
+
+    port: PortNumber
+    """Port to bind to."""
+
+
+BindLocation: T.TypeAlias = T.Union[
+    # Unix file path.
+    str,
+    # localhost port,
+    int,
+    # IP socket to bind to.
+    IPBindLocation,
+]
+"""
+A location to bind to.  If it is a string, it is interpreted as a path for a
+UNIX socket; if it is an integer, it is interpreted as a localhot port,
+otherwise, it is a :py:class:`IPBindLocation` allowing binding to any
+interface.
+"""
+
+
+PathHostPort = T.Union[
+    tuple[str, None, None],
+    tuple[None, str, int],
+]
+"""
+Either ``(path, None, None)``, where ``path`` is the location that should be
+bound to as a UNIX socket, or ``(None, host, port)``, where ``host:port`` is an
+IP socket endpoint to bind to.
+"""
+
+
+def get_path_host_port_from_bind_location(location: BindLocation) -> PathHostPort:
+    """
+    Given a ``location``, parse it into a tuple of three elements: path to
+    listen on as a UNIX socket, hostname to bind to, and port to bind to.
+
+    Returns:
+      Either a tuple of a string, and two ``None`` values, where the first
+      value is a path to a UNIX socket, or a tuple of a ``None`` value, a
+      hostname to bind to and a port to bind to.
+    """
+    if isinstance(location, str):
+        return (location, None, None)
+    elif isinstance(location, IPBindLocation):
+        return (None, location.host, location.port)
+    else:
+        return (None, "127.0.0.1", location)
+
+
 class CoordinatorConfig(BaseModel):
     """
     Configuration model for the coordinator.
@@ -84,7 +147,7 @@ class CoordinatorConfig(BaseModel):
     Logger configuration.  See :py:class:`LoggingConfig`.
     """
 
-    http_bind: T.Union[str, T.Annotated[int, Field(ge=1, le=65535)]]
+    http_bind: BindLocation
     """
     If a string, represents a path for a UNIX socket on which to bind the
     coordinators HTTP interface.  If an integer, represents port to us for that
@@ -104,14 +167,12 @@ class CoordinatorConfig(BaseModel):
     metadata.  Slugs are used as identifiers in commands and internal comms.
     """
 
-    def get_path_host_port(self) -> T.Union[
-        T.Tuple[str, None, None],
-        T.Tuple[None, str, int],
-    ]:
-        if isinstance(self.http_bind, str):
-            return (self.http_bind, None, None)
-        else:
-            return (None, "127.0.0.1", self.http_bind)
+    def get_path_host_port(self) -> PathHostPort:
+        """
+        Interpret the bind location as per
+        :py:func:`get_path_host_port_from_bind_location`.
+        """
+        return get_path_host_port_from_bind_location(self.http_bind)
 
 
 class XbstrapSigningKeyData(BaseModel):

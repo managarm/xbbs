@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-http_bind = 10999
+http_bind = { host = "0.0.0.0", port = 10999 }
 work_root = "/work"
 
 log = { debug = true }
