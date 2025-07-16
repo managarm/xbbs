@@ -70,7 +70,8 @@ def github() -> tuple[str, int]:
 
     for project in project_slugs:
         requests.get(
-            urljoin(config.coordinator_url, project), params=dict(delay=config.start_delay)
+            urljoin(config.coordinator_url, project),
+            params=dict(delay=config.start_delay, increment=1),
         )
 
     return "starting", 200
