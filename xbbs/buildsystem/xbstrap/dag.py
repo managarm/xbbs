@@ -159,7 +159,7 @@ def parse_raw_dag_into_xbbs_dag(raw_dag: dict[str, PipelineJob]) -> XbstrapGraph
     for job_slug, job in raw_dag.items():
 
         def _iter_artifacts(table: PipelineJobNeeds | PipelineJobProducts) -> T.Iterator[str]:
-            def _get_artifact_pairs() -> T.Generator[tuple[ArtifactType, str, str]]:
+            def _get_artifact_pairs() -> T.Generator[tuple[ArtifactType, str, str], None, None]:
                 yield from ((ArtifactType.TOOL, a.name, a.architecture) for a in table.tools)
                 yield from ((ArtifactType.PACKAGE, a.name, a.architecture) for a in table.pkgs)
                 if isinstance(table, PipelineJobProducts):

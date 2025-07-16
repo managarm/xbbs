@@ -54,7 +54,7 @@ def merge_tree_into(src: AnyPath, dst: AnyPath) -> None:
 
 # TODO(arsen): match signature to open?
 @contextlib.contextmanager
-def atomic_write_open(fpath: str, mode: str) -> T.Generator[T.IO[T.Any]]:
+def atomic_write_open(fpath: str, mode: str) -> T.Generator[T.IO[T.Any], None, None]:
     path_dir = path.dirname(fpath)
     with tempfile.NamedTemporaryFile(prefix=".", dir=path_dir, delete=False, mode=mode) as f:
         try:

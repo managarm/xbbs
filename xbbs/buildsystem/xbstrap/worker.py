@@ -42,7 +42,9 @@ from .dag import ArtifactType, artifact_identifier
 logger = logging.getLogger(__name__)
 
 
-async def _parse_notification_stream(stream: asyncio.StreamReader) -> T.AsyncGenerator[T.Any]:
+async def _parse_notification_stream(
+    stream: asyncio.StreamReader,
+) -> T.AsyncGenerator[T.Any, None]:
     buffer = ""
     async for line_ in stream:
         line = line_.decode()
