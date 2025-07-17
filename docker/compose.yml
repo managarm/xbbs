@@ -69,6 +69,7 @@ services:
       dockerfile: docker/Dockerfile-devrt
     volumes:
       - work:/work
+      - ../xbbs:/src/xbbs:ro
     environment:
       XBBS_CMD: FLASK_APP=xbbs.web.wsgi FLASK_ENV=development XBBS_COORDINATOR_URL=http://coordinator:10999/ XBBS_COORDINATOR_WORK_ROOT=/work/ exec flask run --debug -h 0.0.0.0
 
