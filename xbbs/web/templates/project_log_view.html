@@ -48,7 +48,7 @@
 
 {% set raw_log_url = url_for("project.raw_log", slug=slug, build=build, execution=raw_exec) %}
 {% block body %}
-  <h1>{{ log_name }} logs</h1>
+  <h1>{{ log_name }} logs in build {{ build }}</h1>
   {%- if execution -%}<div>{{ exec_brief_status(execution) }}</div>{%- endif -%}
   <div><a href="{{ raw_log_url }}">View raw log</a></div>
   <div>
