@@ -56,7 +56,7 @@ class BuildIdConverter(BaseConverter):
 
 class ExecutionIdConverter(BaseConverter):
     """
-    Handle validating build IDs from URL varables.
+    Handle validating execution IDs from URL varables.
     """
 
     regex = r"[a-zA-Z0-9-_]{22}"
