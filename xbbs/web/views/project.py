@@ -19,8 +19,16 @@ import os.path as path
 import sqlite3
 import typing as T
 
-from flask import Blueprint, Response, g, render_template, request, send_from_directory
-from werkzeug.exceptions import NotFound
+from flask import (
+    Blueprint,
+    Response,
+    g,
+    make_response,
+    render_template,
+    request,
+    send_from_directory,
+)
+from werkzeug.exceptions import NotFound, RequestedRangeNotSatisfiable
 
 import xbbs.coordinator.build_state as xbc_b
 import xbbs.utils.build_history as xbu_h
@@ -100,10 +108,32 @@ def show_log(slug: str, build: str, execution: str = "coordinator") -> str:
 @bp.get("/<project_slug:slug>/<build_id:build>/logs/coordinator/raw")
 def raw_log(slug: str, build: str, execution: str = "coordinator") -> Response:
     _check_slug(slug)
-
     work_root = get_coordinator_work_root()
+
+    # Figure out whether there can be more logs.
+    conn = _open_build(path.join(xbu_h.get_project_dir(work_root, slug), build))
+    try:
+        if execution != "coordinator":
+            execution_obj = xbc_b.read_one_execution(conn, execution)
+            if not execution_obj:
+                raise NotFound()
+            log_done = execution_obj.done_time is not None
+        else:
+            build_obj = xbc_b.read_build_object(conn)
+            log_done = build_obj.end_time is not None
+    finally:
+        conn.close()
+
+    more_logs = "no" if log_done else "yes"
     log_dir = path.join(xbu_h.get_project_dir(work_root, slug), build, "logs")
-    return send_from_directory(log_dir, f"{execution}.log")
+
+    try:
+        response = send_from_directory(log_dir, f"{execution}.log")
+    except RequestedRangeNotSatisfiable as e:
+        response = make_response(e.get_response())
+
+    response.headers["X-Xbbs-More-Logs"] = more_logs
+    return response
 
 
 @bp.get("/<project_slug:slug>/<build_id:build>/logs")

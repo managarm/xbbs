@@ -38,12 +38,49 @@ const termResizeObserver = new ResizeObserver(() => {
 termResizeObserver.observe(termDiv);
 
 async function downloadLogs() {
-    const response = await fetch(rawLog);
-    const reader = response.body.getReader();
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        term.write(value);
+    /* Number of bytes we already downloaded.  */
+    let readAmount = 0;
+    let iterationCount = 0;
+    let hasMore = true;
+
+    /* Update and download loop.  */
+    while (hasMore) {
+        iterationCount++;
+        /* Download a chunk of data.  */
+        const response = await fetch(rawLog, {
+            headers: {
+                Range: `bytes=${readAmount}-`
+            }
+        });
+        const moreLogs = response.headers.get("X-Xbbs-More-Logs");
+        if (moreLogs === "no") {
+            if (iterationCount != 1) {
+                /* Indicates that a state change occurred.  */
+                location.reload();
+            }
+
+            /* Stop the loop after this iteration.  */
+            hasMore = false;
+        }
+        if (response.status === 416) {
+            /* Waiting for more logs  */
+            await new Promise(res => setTimeout(res, 5000));
+            continue;
+        } else if (response.status !== 206) {
+            /* Whoops.  TODO(arsen): figure out how to best report this error.  */
+            return;
+        }
+        const reader = response.body.getReader();
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            readAmount += value.byteLength;
+            term.write(value);
+        }
+
+        /* Chill out a bit.  If we get logs we are likely to soon see more, so wait for less time
+           in this case.  */
+        await new Promise(res => setTimeout(res, 1000));
     }
 }
 
