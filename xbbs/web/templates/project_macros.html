@@ -25,7 +25,11 @@
 {% macro build_info_manyroots(build) %}
   <p>
     <b>Source code revision:</b>
-    <span class="font-mono">{{ build.revision|default('Not fetched yet') }}</span>
+    {% if build.revision %}
+      <span class="font-mono">{{ build.revision }}</span>
+    {% else %}
+      Not fetched yet.
+    {% endif %}
   </p>
   <p><b>Build state:</b> {{ build.state|render_state }}</p>
   <p>
