@@ -51,7 +51,7 @@ class BuildIdConverter(BaseConverter):
     Handle validating build IDs from URL varables.
     """
 
-    regex = xbu_ts.BUILD_ID_RE.pattern
+    regex = f"{xbu_ts.BUILD_ID_RE.pattern}|(^(latest|success)$)"
 
 
 class ExecutionIdConverter(BaseConverter):

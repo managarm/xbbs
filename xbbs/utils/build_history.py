@@ -29,12 +29,18 @@ def get_project_dir(coordinator_root: str, project_slug: str) -> str:
     return path.join(coordinator_root, "projects", project_slug)
 
 
-def get_project_builds(coordinator_root: str, project_slug: str) -> list[str]:
+def get_project_builds(coordinator_root: str, project_slug: str | None = None) -> list[str]:
     """
     For the given ``project_slug``, find the builds this project has in ``coordinator_root``.
+
+    If ``project_slug`` is ``None``, ``coordinator_root`` is interpreted as a path to a project
+    directory.
     """
     try:
-        project_dir = get_project_dir(coordinator_root, project_slug)
+        if project_slug is not None:
+            project_dir = get_project_dir(coordinator_root, project_slug)
+        else:
+            project_dir = coordinator_root
         return list(filter(xbu_ts.parse_build_id_into_ts, os.listdir(project_dir)))
     except FileNotFoundError:
         return []
