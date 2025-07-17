@@ -59,7 +59,7 @@ class ExecutionIdConverter(BaseConverter):
     Handle validating execution IDs from URL varables.
     """
 
-    regex = r"[a-zA-Z0-9-_]{22}"
+    regex = r"^[a-zA-Z0-9-_]{22}$"
 
 
 def get_coord_status() -> None:
