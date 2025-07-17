@@ -207,9 +207,15 @@ async def _run(
     async def _call(cwd: str, *args: str) -> bytes:
         return await xbu_proc.get_command_output(self.log_io, *args, cwd=cwd)
 
+    create_build_db(self.build_dir, datetime.datetime.now(datetime.timezone.utc))
+
+    if self.start_delay > 0:
+        self.log_io.info(f"Start delay of {self.start_delay} seconds present.  Waiting...")
+        self.record_scheduled()
+        await asyncio.sleep(self.start_delay)
+
     # Prepare job directory.
     self.log_io.info("Starting build...")
-    create_build_db(self.build_dir, datetime.datetime.now(datetime.timezone.utc))
     work_dir = path.join(self.build_dir, "work")
     repo_dir = path.join(self.build_dir, "repo")
     src_dir = path.join(self.build_dir, "src")

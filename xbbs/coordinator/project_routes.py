@@ -49,7 +49,13 @@ async def start_project(req: web.Request) -> web.Response:
     """
     coord = get_coord_state(req.app)
     proj = await _get_project(req)
-    new_id = await proj.run_build(coord, "increment" in req.query)
+
+    try:
+        delay = float(req.query.get("delay", 0))
+    except ValueError:
+        raise web.HTTPBadRequest()
+
+    new_id = await proj.run_build(coord, "increment" in req.query, delay)
     if new_id:
         return web.json_response(dict(build_id=new_id))
     else:

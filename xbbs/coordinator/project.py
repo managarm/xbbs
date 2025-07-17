@@ -73,9 +73,19 @@ class ProjectState:
         Directory in which builds of this project are stored.
         """
 
-    async def run_build(self, coord: "CoordinatorState", increment: bool) -> str | None:
+    async def run_build(
+        self,
+        coord: "CoordinatorState",
+        increment: bool,
+        delay: float,
+    ) -> str | None:
         """
         Attempts to run a job if one is not already running.
+
+        Args:
+          coord: Coordinator state object.
+          increment: If ``True``, starts an incremental build.
+          delay: Pre-start delay, in fractional seconds.
 
         Returns:
           The ID of the new job, or ``None`` if a job is running.
@@ -114,7 +124,7 @@ class ProjectState:
                     await asyncio.sleep(1)
 
             self._build = Build(
-                build_id, build_dir, last_build, self.project_slug, self._project_config
+                build_id, build_dir, last_build, self.project_slug, self._project_config, delay
             )
             self._build_task = task = coord.add_build_task(self._build.run(coord))
             task.add_done_callback(self._clear_current_build)
@@ -143,6 +153,7 @@ class Build:
         previous_build_dir: str | None,
         project_slug: str,
         project_config: "Project",
+        delay: float,
     ) -> None:
         self.build_id: T.Final = build_id
         """ID of this build.  For logging."""
@@ -150,6 +161,11 @@ class Build:
         """Directory in which this build stores data.  Does not initially exist."""
         self.previous_build_dir: T.Final = previous_build_dir
         self.project_config: T.Final = project_config
+        self.start_delay: T.Final = delay
+        """
+        Start delay, in fractional seconds.  The coordinator should spend this time idle before
+        fetching sources to allow authors to merge PRs.
+        """
         self.project_slug = project_slug
         self.coordinator_failed = False
         """If true, refuse any further artifacts, logs, et cetera."""
@@ -173,6 +189,14 @@ class Build:
     @property
     def log_dir(self) -> str:
         return path.join(self.build_dir, "logs")
+
+    def record_scheduled(self) -> None:
+        """
+        Record that this build started fetching.
+        """
+        from .build_state import set_scheduled
+
+        set_scheduled(self.build_dir)
 
     def record_fetching(self) -> None:
         """

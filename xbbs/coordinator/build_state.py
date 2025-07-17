@@ -204,6 +204,18 @@ def create_build_db(build_directory: str, start_time: datetime) -> None:
         conn.close()
 
 
+def set_scheduled(build_directory: str) -> None:
+    """
+    For the given build directory, set the build state to ``SCHEDULED``.
+    """
+    conn = open_build_db(build_directory)
+    try:
+        with conn:
+            conn.execute("UPDATE build SET state = 'SCHEDULED'")
+    finally:
+        conn.close()
+
+
 def set_build_fetching(build_directory: str) -> None:
     """
     For the given build directory, set the build state to ``FETCHING``.
