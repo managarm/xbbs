@@ -24,7 +24,7 @@
     <div>
       {{ proj_macros.build_info_manyroots(build_obj) }}
     </div>
-    <a href="{{ url_for("project.history_and_overview", slug=slug, build=build, _anchor="build-" + build) }}">
+    <a href="{{ url_for("project.history_and_overview", slug=slug, _anchor="build-" + build) }}">
       Back to build history
     </a>
     <div class="divide-y flex flex-col">

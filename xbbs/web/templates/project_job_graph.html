@@ -87,7 +87,7 @@
 {% block body %}
   <h1>Jobs in build {{ build }} of {{ project.project_name }}</h1>
   <div>{{ project_utils.build_info_manyroots(build_obj) }}</div>
-  <a href="{{ url_for("project.history_and_overview", slug=slug, build=build, _anchor="build-" + build) }}">
+  <a href="{{ url_for("project.history_and_overview", slug=slug, _anchor="build-" + build) }}">
     Back to build history
   </a>
 
