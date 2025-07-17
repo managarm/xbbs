@@ -168,7 +168,7 @@ def raw_log(slug: str, build: str, execution: str = "coordinator") -> Response:
     log_dir = path.join(xbu_h.get_project_dir(work_root, slug), build, "logs")
 
     try:
-        response = send_from_directory(log_dir, f"{execution}.log")
+        response = send_from_directory(log_dir, f"{execution}.log", mimetype="text/plain")
     except RequestedRangeNotSatisfiable as e:
         response = make_response(e.get_response())
 
