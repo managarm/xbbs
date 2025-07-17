@@ -1,4 +1,4 @@
-# Example coordinator configuration, also used by the Docker dev env
+# Dockerfile for a server serving git-http-backend.   -*- dockerfile -*-
 # Copyright (C) 2025  Arsen Arsenović <arsen@managarm.org>
 
 # This program is free software: you can redistribute it and/or modify
@@ -14,25 +14,6 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-http_bind = { host = "0.0.0.0", port = 10999 }
-work_root = "/work"
+FROM httpd:latest
 
-log = { debug = true }
-
-[projects.managarm]
-name = "Managarm (x86_64)"
-description = "Pragmatic microkernel-based OS with fully asynchronous I/O"
-git = "https://github.com/managarm/bootstrap-managarm.git"
-
-[projects.managarm.buildsystem]
-type = "xbstrap"
-distfile_path = "xbbs/x86_64"
-
-[projects.managarm.buildsystem.mirror]
-build_directory = "/mirrors/"
-base_url = "http://mirror_server/"
-
-[projects.managarm.buildsystem.signing_key]
-fingerprint = "@FINGERPRINT@"
-public_key = "/work/keys/@FINGERPRINT@.plist"
-private_key = "/work/keys/@FINGERPRINT@.rsa"
+RUN apt-get update && apt-get install -y git

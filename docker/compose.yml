@@ -17,6 +17,7 @@ services:
     volumes:
       - src:/src
       - work:/work
+      - mirrors:/mirrors
       - ../config-examples/coordinator.toml:/etc/xbbs/coordinator.toml.in:ro
     environment:
       XBBS_CMD: |2
@@ -60,14 +61,22 @@ services:
     image: xbbs-devrt
     pull_policy: never
     ports:
-      - 8000:8000/tcp
+      - 8000:5000/tcp
     build:
       context: ../
       dockerfile: docker/Dockerfile-devrt
     volumes:
       - work:/work
     environment:
-      XBBS_CMD: FLASK_APP=xbbs.web.wsgi FLASK_ENV=development XBBS_COORDINATOR_URL=http://coordinator:10999/ XBBS_COORDINATOR_WORK_ROOT=/work/ exec flask run --debug
+      XBBS_CMD: FLASK_APP=xbbs.web.wsgi FLASK_ENV=development XBBS_COORDINATOR_URL=http://coordinator:10999/ XBBS_COORDINATOR_WORK_ROOT=/work/ exec flask run --debug -h 0.0.0.0
+
+  mirror_server:
+    build:
+      context: .
+      dockerfile: Dockerfile-mirror-server
+    volumes:
+      - mirrors:/mirrors
+      - ./mirrors-httpd.conf:/usr/local/apache2/conf/httpd.conf:ro
 
 volumes:
   src:
@@ -77,3 +86,4 @@ volumes:
       o: lowerdir=${PWD}/..,upperdir=${PWD}/src-ov-upper,workdir=${PWD}/src-ov-work
       device: overlay
   work:
+  mirrors:

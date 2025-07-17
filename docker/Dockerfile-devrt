@@ -14,22 +14,11 @@ RUN apt-get -y install  \
     libpq-dev \
     python3-all-dev
 
-RUN mkdir /src
 RUN python3 -m venv /venv
-
-# Files from the sources toplevel needed to do the initial editable install
-# into a virtualenv.
-ADD pyproject.toml \
-    xbps-keygen \
-    README.rst \
-    /src
-# Separate step because Docker copies contents
-ADD xbbs /src/xbbs
 
 # bootstrap-managarm uses y4
 RUN . /venv/bin/activate \
     && pip install y4
-RUN . /venv/bin/activate && pip install -e /src/.'[history]'
 
 # Download cbuildrt v0.1.3
 RUN cd /usr/local/bin \
@@ -46,6 +35,19 @@ RUN mkdir -p /var/lib/cbuildrt/managarm-buildenv \
 RUN cd /usr/local/bin \
     &&  ( wget -O- https://repo-default.voidlinux.org/static/xbps-static-static-0.59_5.x86_64-musl.tar.xz \
     | tar -xJf - ./usr/bin/ --strip-components=3 )
+
+RUN mkdir /src
+
+# Files from the sources toplevel needed to do the initial editable install
+# into a virtualenv.
+ADD pyproject.toml \
+    xbps-keygen \
+    README.rst \
+    /src
+# Separate step because Docker copies contents
+ADD xbbs /src/xbbs
+
+RUN . /venv/bin/activate && pip install -e '/src/[dev]'
 
 COPY --chmod=755 <<"EOF" /run_xbbs.sh
 #!/bin/sh
