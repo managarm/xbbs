@@ -7,6 +7,7 @@ name: xbbs-dev
 
 services:
   coordinator:
+    init: true
     image: xbbs-devrt
     pull_policy: never
     build:
@@ -42,6 +43,7 @@ services:
         exec xbbs-coordinator
 
   worker:
+    init: true
     image: xbbs-devrt
     pull_policy: never
     build:
