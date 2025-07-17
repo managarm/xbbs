@@ -88,15 +88,19 @@ class ProjectState:
             # Find latest build at exec time.
             last_build = None
             if increment:
-                last_build = max(
-                    (
-                        build_id
-                        for build_id in os.listdir(self.project_directory)
-                        if xbu_ts.BUILD_ID_RE.match(build_id)
-                    ),
-                    default=None,
-                )
-                last_build = last_build and path.join(self.project_directory, last_build)
+                try:
+                    last_build = max(
+                        (
+                            build_id
+                            for build_id in os.listdir(self.project_directory)
+                            if xbu_ts.BUILD_ID_RE.match(build_id)
+                        ),
+                        default=None,
+                    )
+                    last_build = last_build and path.join(self.project_directory, last_build)
+                except FileNotFoundError:
+                    # No project directory yet.  Hence, no previous build.
+                    pass
 
             # Generate unique build ID.
             while True:
