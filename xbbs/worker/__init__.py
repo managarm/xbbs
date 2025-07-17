@@ -120,14 +120,17 @@ async def execute_job(
         )
 
 
+async def send_heartbeat(coordinator_socket: aiohttp.ClientWebSocketResponse) -> None:
+    """Send a heartbeat message over ``coordinator_socket``."""
+    await coordinator_socket.send_bytes(
+        xbd_messages.serialize(xbd_messages.heartbeat.WorkerHeartbeat.make_for_current_machine())
+    )
+
+
 async def heartbeat(coordinator_socket: aiohttp.ClientWebSocketResponse) -> None:
     try:
         while not coordinator_socket.closed:
-            await coordinator_socket.send_bytes(
-                xbd_messages.serialize(
-                    xbd_messages.heartbeat.WorkerHeartbeat.make_for_current_machine()
-                )
-            )
+            await send_heartbeat(coordinator_socket)
             # Send every 15 seconds or so.
             await asyncio.sleep(15)
     except aiohttp.ClientError:
@@ -147,6 +150,10 @@ async def attach_to_coordinator(
         asyncio.TaskGroup() as connection_group,
         client.ws_connect("/worker") as coordinator_socket,
     ):
+        # Identify immediately.  Important to do this first so the coordinator always knows our
+        # name.
+        await send_heartbeat(coordinator_socket)
+        # Start heartbeating in the background also.
         hb_task = connection_group.create_task(heartbeat(coordinator_socket))
 
         while True:
