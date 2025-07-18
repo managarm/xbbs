@@ -44,15 +44,23 @@ async def _do_log_forwarding(
       log_r_fd: Read end of a pipe whose contents to forward to the coordinator.
     """
     log_r = os.fdopen(log_r_fd, buffering=1, encoding="utf-8", errors="backslashreplace")
+    should_send = True
     async with xbu_pipe.pipe_text_reader(log_r) as log_reader:
         async for log_line in log_reader:
-            await socket.send_bytes(
-                xbd_messages.serialize(
-                    xbd_messages.tasks.LogMessage(
-                        msg_type="L", log_line=log_line, execution_id=execution_id
+            if not should_send:
+                continue
+            try:
+                await socket.send_bytes(
+                    xbd_messages.serialize(
+                        xbd_messages.tasks.LogMessage(
+                            msg_type="L", log_line=log_line, execution_id=execution_id
+                        )
                     )
                 )
-            )
+            except Exception:
+                # Need to keep exhausting the pipe, so lets ignore the error.
+                logger.exception("failed to deliver a log line")
+                should_send = False
 
 
 async def execute_job(
