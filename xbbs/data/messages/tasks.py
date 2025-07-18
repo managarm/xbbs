@@ -69,6 +69,19 @@ class TaskResponse(BaseModel):
     # TODO(arsen): mirror URL
 
 
+class CancelTask(BaseModel):
+    """
+    Lets the coordinator tell the worker to give up on a certain execution.
+    """
+
+    msg_type: T.Literal["STOP"]
+    execution_id: str
+    """
+    Which execution to give up on?  If this execution is not running, the message is silently
+    ignored.
+    """
+
+
 class TaskDone(BaseModel):
     """Indicates that an execution completed in some manner."""
 
@@ -79,8 +92,12 @@ class TaskDone(BaseModel):
     run_time: float
     """How long did it take?  In fractional seconds."""
 
-    success: bool
-    """Was it successful?"""
+    status: T.Literal["S", "F", "A"]
+    """
+    Was it successful?  If the value is ``S``, the build is considered a success.  If the value is
+    ``F``, the build failed normally, and if the value is ``A``, the build failed abnormally and
+    should be re-scheduled.
+    """
 
 
 class LogMessage(BaseModel):

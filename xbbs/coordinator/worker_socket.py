@@ -81,12 +81,15 @@ async def handle_worker_socket(request: web.Request) -> web.WebSocketResponse:
                     await worker.start_wait_for_task(caps)
                 case xbm.tasks.LogMessage(execution_id=execution, log_line=data):
                     coord.write_log_data(execution, data)
-                case xbm.tasks.TaskDone(execution_id=execution, run_time=rt, success=True):
+                case xbm.tasks.TaskDone(execution_id=execution, run_time=rt, status="S"):
                     worker.current_execution = None
                     await coord.succeed_execution(execution, rt)
-                case xbm.tasks.TaskDone(execution_id=execution, run_time=rt, success=False):
+                case xbm.tasks.TaskDone(execution_id=execution, run_time=rt, status="F"):
                     worker.current_execution = None
                     await coord.fail_execution(execution, rt)
+                case xbm.tasks.TaskDone(execution_id=execution, status="A"):
+                    worker.current_execution = None
+                    coord.abnormally_fail_execution(execution)
     finally:
         ws_tracker.remove(ws)
         await coord.remove_worker(worker)

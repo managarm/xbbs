@@ -19,6 +19,7 @@ import logging
 import os
 import tempfile
 import time
+import typing as T
 
 import aiohttp
 
@@ -63,6 +64,15 @@ async def _do_log_forwarding(
                 should_send = False
 
 
+_background_tasks = set[asyncio.Future[T.Any]]()
+
+
+def add_background_task(task: asyncio.Future[T.Any]) -> None:
+    """Record a task that runs in the background."""
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
+
 async def execute_job(
     client: aiohttp.ClientSession,
     task: xbd_messages.tasks.TaskResponse,
@@ -70,62 +80,56 @@ async def execute_job(
     socket: aiohttp.ClientWebSocketResponse,
 ) -> None:
     """
-    Sets up the environment for executing jobs and delegates to
-    :py:func:``builder.do_build``.
+    Sets up the environment for executing jobs, as well as all the required tasks.
     """
-    try:
-        start = time.monotonic()
-        (log_r_fd, log_w_fd) = os.pipe()
-        with tempfile.TemporaryDirectory(dir=worker_cfg.work_root) as work_dir:
-            async with asyncio.TaskGroup() as build_group:
-                build_group.create_task(_do_log_forwarding(task.execution_id, socket, log_r_fd))
-                del log_r_fd
-                log_w = os.fdopen(log_w_fd, "w", buffering=1)
-                logger = xbu_logging.build_logger.BuildLogger(log_w)
-                builder_future = build_group.create_task(
-                    build_task(
-                        work_dir,
-                        ArtifactHelperImpl(
-                            client,
-                            task.execution_id,
-                            task.repo_url_path,
-                            logger,
-                        ),
-                        task,
-                        logger,
-                        xbu_str.fuse_with_slashes(worker_cfg.coordinator_url, task.repo_url_path),
-                    )
-                )
-                # TODO(arsen): can this close deadlock due to flushing?
-                builder_future.add_done_callback(lambda _: log_w.close())
-                # TODO(arsen): needs extra messsage processing for
-                # cancel/coordinator leaving/dying
+    fail_mode: T.Literal["S", "F", "A"] = "A"
+    async with asyncio.TaskGroup() as build_group:
+        start_time = time.monotonic()
 
-        # At this point, builder_future is guaranteed to be complete.
-        is_success = await builder_future
-        await socket.send_bytes(
-            xbd_messages.serialize(
-                xbd_messages.tasks.TaskDone(
-                    msg_type="DONE!",
-                    success=is_success,
-                    run_time=time.monotonic() - start,
-                    execution_id=task.execution_id,
+        # Set up logging and log forwarding.
+        (log_r_fd, log_w_fd) = os.pipe()
+        build_group.create_task(_do_log_forwarding(task.execution_id, socket, log_r_fd))
+        del log_r_fd
+        build_logger = None
+        log_w = os.fdopen(log_w_fd, "w", buffering=1)
+
+        try:
+            build_logger = xbu_logging.build_logger.BuildLogger(log_w)
+
+            with tempfile.TemporaryDirectory(dir=worker_cfg.work_root) as work_dir:
+                # Start the real build.
+                fail_mode = "F"
+                is_success = await build_task(
+                    work_dir,
+                    ArtifactHelperImpl(
+                        client,
+                        task.execution_id,
+                        task.repo_url_path,
+                        build_logger,
+                    ),
+                    task,
+                    build_logger,
+                    xbu_str.fuse_with_slashes(worker_cfg.coordinator_url, task.repo_url_path),
                 )
+                if is_success:
+                    fail_mode = "S"
+        except Exception:
+            logger.exception("build of execution %r failed exceptionally", task)
+            if build_logger:
+                build_logger.exception("worker failure while building")
+        finally:
+            log_w.close()
+
+    await socket.send_bytes(
+        xbd_messages.serialize(
+            xbd_messages.tasks.TaskDone(
+                msg_type="DONE!",
+                status=fail_mode,
+                run_time=time.monotonic() - start_time,
+                execution_id=task.execution_id,
             )
         )
-    except Exception:
-        # Job failed to some exception.
-        logger.exception(f"execution {task.execution_id} failed")
-        await socket.send_bytes(
-            xbd_messages.serialize(
-                xbd_messages.tasks.TaskDone(
-                    msg_type="DONE!",
-                    success=False,  # this branch is unreachable on success
-                    run_time=time.monotonic() - start,
-                    execution_id=task.execution_id,
-                )
-            )
-        )
+    )
 
 
 async def send_heartbeat(coordinator_socket: aiohttp.ClientWebSocketResponse) -> None:
@@ -164,8 +168,7 @@ async def attach_to_coordinator(
         # Start heartbeating in the background also.
         hb_task = connection_group.create_task(heartbeat(coordinator_socket))
 
-        while True:
-            # Job loop.
+        async def send_bored() -> None:
             await coordinator_socket.send_bytes(
                 xbd_messages.serialize(
                     xbd_messages.tasks.TaskRequest(
@@ -174,12 +177,44 @@ async def attach_to_coordinator(
                 )
             )
 
-            # Receive and process job control messages.
-            message = xbd_messages.deserialize(await coordinator_socket.receive_bytes())
-            assert isinstance(message, xbd_messages.tasks.TaskResponse)
-            # TODO(arsen): make execute_job happen asynchronously so that we can receive
-            # more messages later.
-            await execute_job(client, message, worker_cfg, coordinator_socket)
+        # Kick off the job loop.
+        await send_bored()
+
+        current_execution: tuple[str, asyncio.Task[T.Any]] | None = None
+        working = True
+
+        def execution_done(_: T.Any) -> None:
+            nonlocal current_execution
+            current_execution = None
+            if not working:
+                return
+
+            add_background_task(asyncio.create_task(send_bored()))
+
+        try:
+            while working:
+                # Receive and process job control messages.
+                message = xbd_messages.deserialize(await coordinator_socket.receive_bytes())
+                if isinstance(message, xbd_messages.tasks.TaskResponse):
+                    assert current_execution is None
+                    exec_id = message.execution_id
+                    current_execution = (
+                        exec_id,
+                        asyncio.create_task(
+                            execute_job(client, message, worker_cfg, coordinator_socket)
+                        ),
+                    )
+                    current_execution[1].add_done_callback(execution_done)
+                elif isinstance(message, xbd_messages.tasks.CancelTask):
+                    if current_execution and current_execution[0] == message.execution_id:
+                        current_execution[1].cancel()
+                else:
+                    raise RuntimeError("Coordinator misbehaved")
+        finally:
+            # Prevent sending further BOREDs
+            working = False
+            if current_execution:
+                current_execution[1].cancel()
 
         # Supress unused warning.
         del hb_task
@@ -195,7 +230,7 @@ async def amain(cfg: config.WorkerConfig) -> None:
         # as long as necessary.
         while True:
             try:
-                await asyncio.shield(attach_to_coordinator(client, cfg))
+                await attach_to_coordinator(client, cfg)
             except Exception:
                 # TODO(arsen): exponential backoff
                 logger.exception("coordinator connection failed")

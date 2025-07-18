@@ -33,6 +33,7 @@ ALL_MSG_TYPES: T.TypeAlias = T.Union[
     tasks.TaskResponse,
     tasks.LogMessage,
     tasks.TaskDone,
+    tasks.CancelTask,
 ]
 """
 A message of yet-undetermined type.
