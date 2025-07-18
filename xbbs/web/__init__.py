@@ -92,6 +92,7 @@ _STATE_NAMES = {
     NodeState.FAILED: "Failed to build",
     NodeState.FAILED_ABNORMALLY: "Failed abnormally",
     NodeState.READY: "Ready to build",
+    NodeState.RUNNING: "Running",
     NodeState.SUCCEEDED: "Successfully built",
     NodeState.UNSATISFIABLE: "Unsatisfiable",
     NodeState.WAITING: "Waiting for dependencies",

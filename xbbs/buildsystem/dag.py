@@ -58,6 +58,11 @@ class NodeState(enum.Enum):
     """Node dependencies are not yet built."""
     READY = "READY"
     """Node is ready to be scheduled."""
+    RUNNING = "RUNNING"
+    """
+    Pseudo-state used by ``read_job_graph`` for states for which there exists a running
+    execution.
+    """
     FAILED = "FAILED"
     """Node build failed."""
     FAILED_ABNORMALLY = "FAILED_ABNORMALLY"

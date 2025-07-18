@@ -692,7 +692,17 @@ def read_job_graph(conn: sqlite3.Connection) -> DbGraph:
     with conn:
         cur = conn.cursor()
         for id, state, unstable in cur.execute(
-            "SELECT identifier, state, unstable FROM node"
+            """
+            SELECT identifier,
+                   CASE WHEN EXISTS(SELECT 1 FROM execution
+                                             WHERE state = 'RUNNING'
+                                               AND node_id = node.identifier)
+                        THEN 'RUNNING'
+                        ELSE state
+                   END,
+                   unstable
+                   FROM node
+            """
         ).fetchall():
             assert id not in db_graph.jobs
             db_graph.jobs[id] = DbJob(
