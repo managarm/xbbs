@@ -75,6 +75,9 @@ async def handle_worker_socket(request: web.Request) -> web.WebSocketResponse:
                 case xbm.heartbeat.WorkerHeartbeat(hostname=hostname, load_avg=load):
                     worker.update_status(hostname, load)
                 case xbm.tasks.TaskRequest(capabilities=caps):
+                    if curr_exec := worker.current_execution:
+                        worker.current_execution = None
+                        coord.abnormally_fail_execution(curr_exec)
                     await worker.start_wait_for_task(caps)
                 case xbm.tasks.LogMessage(execution_id=execution, log_line=data):
                     coord.write_log_data(execution, data)
