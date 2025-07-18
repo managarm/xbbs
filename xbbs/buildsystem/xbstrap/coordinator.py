@@ -228,6 +228,13 @@ class XbstrapCoordinatorBuildSystem(CoordinatorBuildSystem):
             for a in self._graph.artifacts.values()
             if a.data.architecture != "noarch"
         )
+
+        if len(self._all_arches) > 1:
+            self.log_io.error(
+                f"Multi-architecture builds are not supported yet (got {self._all_arches!r})"
+            )
+            raise RuntimeError("Multi-arch builds not supported yet")
+
         return self._graph
 
     async def serialize_task(self, node: dag.Node) -> T.Any:
