@@ -20,6 +20,7 @@ import xbbs.data.config as config
 import xbbs.utils.logging as xbu_logging
 
 from .coordinator_state import COORDINATOR_STATE_KEY, CoordinatorState
+from .ws_tracker import WEBSOCKET_TRACKER_KEY, WebsocketTracker
 
 
 def main() -> None:
@@ -30,6 +31,8 @@ def main() -> None:
 
     app = web.Application()
     app[COORDINATOR_STATE_KEY] = CoordinatorState(coordinator_config)
+    app[WEBSOCKET_TRACKER_KEY] = ws_tracker = WebsocketTracker()
+    app.on_shutdown.append(lambda _: ws_tracker.close_active_sockets())
 
     (path, host, port) = coordinator_config.get_path_host_port()
 

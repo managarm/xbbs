@@ -28,6 +28,7 @@ from werkzeug.security import safe_join
 import xbbs.data.messages as xbm
 
 from .coordinator_state import get_coord_state
+from .ws_tracker import WEBSOCKET_TRACKER_KEY
 
 blueprint = web.RouteTableDef()
 logger = logging.getLogger(__name__)
@@ -37,7 +38,9 @@ logger = logging.getLogger(__name__)
 async def handle_worker_socket(request: web.Request) -> web.WebSocketResponse:
     coord = get_coord_state(request.app)
     ws = web.WebSocketResponse()
+    ws_tracker = request.app[WEBSOCKET_TRACKER_KEY]
     await ws.prepare(request)
+    ws_tracker.add(ws)
 
     worker = await coord.allocate_worker_tracker(ws)
     logger.debug("worker %r connected", worker)
@@ -82,6 +85,7 @@ async def handle_worker_socket(request: web.Request) -> web.WebSocketResponse:
                     worker.current_execution = None
                     await coord.fail_execution(execution, rt)
     finally:
+        ws_tracker.remove(ws)
         await coord.remove_worker(worker)
 
     return ws
