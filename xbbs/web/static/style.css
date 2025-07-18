@@ -178,3 +178,7 @@ table.pretty-table tr:nth-child(odd of :has(td)) {
     vertical-align: middle;
     display: inline-block;
 }
+
+.w-full {
+    width: 100%;
+}
