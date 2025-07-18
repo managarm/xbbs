@@ -46,6 +46,7 @@ services:
     init: true
     image: xbbs-devrt
     pull_policy: never
+    depends_on: [coordinator]
     build:
       context: ../
       dockerfile: docker/Dockerfile-devrt
