@@ -66,7 +66,8 @@ def github() -> tuple[str, int]:
 
     project_slugs = config.github_repo_to_projects.get(full_name, None)
     if project_slugs is None:
-        return "mapping not found", 404
+        # Not considered an error, really.  It just means that the event was irrelevant.
+        return "mapping not found", 200
 
     for project in project_slugs:
         requests.get(
