@@ -294,6 +294,7 @@ async def run(self: "Build", coordinator_state: "CoordinatorState") -> None:
             self.mark_as_coordinator_fail()
         except Exception:
             self.log_io.exception("failed to store fault status")
+        self.log_io.exception("Coordinator failed")
         raise
     finally:
         self.log_io.out_stream.close()
