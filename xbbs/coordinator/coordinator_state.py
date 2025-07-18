@@ -116,7 +116,7 @@ class CoordinatorState:
         """
         async with self._worker_tracker_lock:
             # XXX: GIL-reliant
-            return list(x.status for x in self._worker_trackers.values() if x.status)
+            return list(status for x in self._worker_trackers.values() if (status := x.status))
 
     async def get_project_by_slug(self, slug: str) -> ProjectState | None:
         """
@@ -136,10 +136,25 @@ class CoordinatorState:
             except KeyError:
                 return None
 
-    async def add_task(self, task: "TaskResponse", capabilities: set[str], build_dir: str) -> None:
+    async def add_task(
+        self,
+        task: "TaskResponse",
+        capabilities: set[str],
+        build_dir: str,
+        project_slug: str,
+        build_id: str,
+        node_id: str,
+    ) -> None:
         """Enqueue a task for some worker."""
         await self.outgoing_task_queue.enqueue(
-            EnqueuedTask(task=task, capabilities=capabilities, build_dir=build_dir)
+            EnqueuedTask(
+                task=task,
+                capabilities=capabilities,
+                build_dir=build_dir,
+                project_slug=project_slug,
+                build_id=build_id,
+                node_id=node_id,
+            )
         )
 
     # Execution tracking.

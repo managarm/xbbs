@@ -18,9 +18,26 @@
 This module contains a model describing the status of the coordinator and workers.
 """
 
+from dataclasses import dataclass
 from datetime import datetime
 
 from pydantic import BaseModel
+
+
+@dataclass
+class CurrentExecution:
+    """
+    Brief class containing info about what the worker is currently up to.
+    """
+
+    project_slug: str
+    """Slug of the project being built at the moment."""
+    build_id: str
+    """Build ID within that project being built at the moment."""
+    node_id: str
+    """Job graph node being built at this moment."""
+    execution_id: str
+    """ID of the currently-active execution that builds the aforementioned node."""
 
 
 class WorkerStatus(BaseModel):
@@ -44,6 +61,8 @@ class WorkerStatus(BaseModel):
     """TZ-aware timestamp of when the worker was last seen."""
 
     # TODO(arsen): show current job
+    current_execution: CurrentExecution | None
+    """If present, the active execution.  Otherwise, the worker is resting."""
 
 
 class Project(BaseModel):

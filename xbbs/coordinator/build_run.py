@@ -45,6 +45,11 @@ if T.TYPE_CHECKING:
     from .project import Build
 
 
+SendTaskCallback: T.TypeAlias = T.Callable[
+    [str, xbm_tasks.TaskResponse, set[str]], T.Coroutine[T.Any, T.Any, None]
+]
+
+
 def _mark_fail(self: "Build", graph: dag.Graph, product_id: str) -> None:
     try:
         mark_artifact_missing(self.build_dir, product_id)
@@ -75,7 +80,7 @@ async def _enqueue_node(
     graph: dag.Graph,
     node: dag.Node,
     alloc_execution: T.Callable[["Build"], T.Coroutine[T.Any, T.Any, "Execution"]],
-    send_task: T.Callable[[xbm_tasks.TaskResponse, set[str]], T.Coroutine[T.Any, T.Any, None]],
+    send_task: SendTaskCallback,
 ) -> None:
     self.log_io.info(f"Node {node.identifier} is ready to build")
     buildsystem_data = await self._buildsystem.serialize_task(node)
@@ -98,6 +103,7 @@ async def _enqueue_node(
             buildsystem_specific=buildsystem_data,
         )
         await send_task(
+            node.identifier,
             task_msg,
             set(node.required_capabilities),
         )
@@ -157,7 +163,7 @@ def _find_work(
     graph: dag.Graph,
     executions_group: asyncio.TaskGroup,
     alloc_execution: T.Callable[["Build"], T.Coroutine[T.Any, T.Any, "Execution"]],
-    send_task: T.Callable[[xbm_tasks.TaskResponse, set[str]], T.Coroutine[T.Any, T.Any, None]],
+    send_task: SendTaskCallback,
 ) -> bool:
     some_waiting = False
     for node in graph.nodes.values():
@@ -179,7 +185,7 @@ async def _solve_graph(
     self: "Build",
     graph: dag.Graph,
     alloc_execution: T.Callable[["Build"], T.Coroutine[T.Any, T.Any, "Execution"]],
-    send_task: T.Callable[[xbm_tasks.TaskResponse, set[str]], T.Coroutine[T.Any, T.Any, None]],
+    send_task: SendTaskCallback,
 ) -> None:
     async with asyncio.TaskGroup() as executions_group:
         while True:
@@ -193,7 +199,7 @@ async def _solve_graph(
 async def _run(
     self: "Build",
     alloc_execution: T.Callable[["Build"], T.Coroutine[T.Any, T.Any, "Execution"]],
-    send_task: T.Callable[[xbm_tasks.TaskResponse, set[str]], T.Coroutine[T.Any, T.Any, None]],
+    send_task: SendTaskCallback,
 ) -> bool:
     """
     Returns:
@@ -278,7 +284,9 @@ async def run(self: "Build", coordinator_state: "CoordinatorState") -> None:
         build_result = await _run(
             self,
             coordinator_state.alloc_execution,
-            lambda task, caps: coordinator_state.add_task(task, caps, self.build_dir),
+            lambda node_id, task, caps: coordinator_state.add_task(
+                task, caps, self.build_dir, self.project_slug, self.build_id, node_id
+            ),
         )
         set_build_final_state(self.build_dir, build_result)
     except BaseException:

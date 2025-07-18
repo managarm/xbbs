@@ -26,7 +26,7 @@ import typing as T
 from aiohttp import web
 
 import xbbs.data.messages as xbm
-from xbbs.data.coordinator.status import WorkerStatus
+from xbbs.data.coordinator.status import CurrentExecution, WorkerStatus
 
 if T.TYPE_CHECKING:
     from .coordinator_state import CoordinatorState
@@ -45,10 +45,16 @@ class WorkerTracker:
         self._lock = asyncio.Lock()
         self.worker_id: T.Final = worker_id
         self.socket: T.Final = socket
-        self.status: WorkerStatus | None = None
         self.removed = False
         self.coordinator_state = coord
-        self.current_execution: str | None = None
+        self.current_execution: CurrentExecution | None = None
+        """
+        If present, contains info about the currently active build.x
+        """
+        self.last_heartbeat: tuple[xbm.heartbeat.WorkerHeartbeat, datetime.datetime] | None = None
+        """
+        Last received heartbeat message, and when it was received.
+        """
 
         self._task_wait_task: asyncio.Task[None] | None = None
 
@@ -61,19 +67,29 @@ class WorkerTracker:
         """
         assert self.socket.closed
         if self.current_execution is not None:
-            self.coordinator_state.abnormally_fail_execution(self.current_execution)
+            self.coordinator_state.abnormally_fail_execution(self.current_execution.execution_id)
         self.removed = True
         if self._task_wait_task is not None:
             self._task_wait_task.cancel()
 
-    def update_status(self, hostname: str, load: tuple[float, float, float]) -> None:
+    def update_status(self, heartbeat_msg: xbm.heartbeat.WorkerHeartbeat) -> None:
         # XXX: GIL-reliant
         # TODO(arsen): make the worker submit hostname on connect
-        self.status = WorkerStatus(
+        self.last_heartbeat = (heartbeat_msg, datetime.datetime.now(tz=datetime.timezone.utc))
+
+    @property
+    def status(self) -> WorkerStatus | None:
+        """Return an object describing the current status of the worker."""
+        if self.last_heartbeat is None:
+            # Hasn't identified yet.
+            return None
+        (hb, ls) = self.last_heartbeat
+        return WorkerStatus(
             id=self.worker_id,
-            hostname=hostname,
-            load_avg=load,
-            last_seen=datetime.datetime.now(tz=datetime.timezone.utc),
+            hostname=hb.hostname,
+            load_avg=hb.load_avg,
+            last_seen=ls,
+            current_execution=self.current_execution,
         )
 
     async def start_wait_for_task(self, capabilities: set[str]) -> None:
@@ -90,7 +106,12 @@ class WorkerTracker:
 
             async def _wait_for_task() -> None:
                 task = await self.coordinator_state.outgoing_task_queue.dequeue(capabilities)
-                self.current_execution = task.task.execution_id
+                self.current_execution = CurrentExecution(
+                    project_slug=task.project_slug,
+                    build_id=task.build_id,
+                    node_id=task.node_id,
+                    execution_id=task.task.execution_id,
+                )
                 # TODO(arsen): handle exceptions raised here.  Currently, if an error
                 # happens, an execution will simply be stuck forever (or until the
                 # worker times out or disconnects, rather, even if it gets a new job in

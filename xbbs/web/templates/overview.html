@@ -45,7 +45,24 @@
         <div class="p-3">
           <span class="font-mono">{{ worker.hostname }}</span>
           (load: {{ worker.load_avg|join(", ") }})<br>
-          Last seen {{ worker.last_seen|humanize_as_delta }}
+          <div>Last seen {{ worker.last_seen|humanize_as_delta }}</div>
+          {% if worker.current_execution %}
+            {% set exec = worker.current_execution %}
+            <div>
+              Currently building execution
+              <a href="{{ url_for(
+                         "project.show_log",
+                         slug=exec.project_slug,
+                         build=exec.build_id,
+                         execution=exec.execution_id
+                         )
+                       }}">
+                <span class="font-mono">{{ exec.execution_id }}</span>
+              </a>
+              of node <span class="font-mono">{{ exec.node_id }}</span>
+              of project {{ g.status.projects[exec.project_slug].project_name }}
+            </div>
+          {% endif %}
         </div>
       {% else %}
         No workers running!  Yell at the admin.

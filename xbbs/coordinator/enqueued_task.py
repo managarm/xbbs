@@ -31,3 +31,15 @@ class EnqueuedTask:
     """
     Build directory that owns this execution.  Used to update its status to ``RUNNING``.
     """
+    project_slug: str
+    """
+    Short name of the project requesting this task.
+    """
+    build_id: str
+    """
+    Build ID that owns this execution.
+    """
+    node_id: str
+    """
+    Identifier of the node requesting this task.
+    """
