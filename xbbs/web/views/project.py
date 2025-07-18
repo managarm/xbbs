@@ -226,12 +226,12 @@ def job_graph(slug: str, build: str) -> str:
             case NodeState.FAILED_ABNORMALLY:
                 # Interesting to the admin
                 return 20
+            case NodeState.RUNNING:
+                return 30
 
             # The rest of these mostly don't matter, but the template expects them to be grouped.
             case NodeState.SUCCEEDED:
                 return 40
-            case NodeState.RUNNING:
-                return 45
             case NodeState.READY:
                 return 50
             case NodeState.WAITING:
