@@ -208,10 +208,13 @@ class BuildSystemFactory(ABC):
                         other semantics.
           src_directory: Location where xbbs clones the ``git`` source tree.  The clone
                          will be fresh.
-          repo_base_url: Complete URL at which the coordinator exposes the repositories.
-                         No trailing slash.
           job_directory: An empty directory in which the build system ought to work.
                          Deleted after a job is completed.
+          repo_base_url: Complete URL at which the coordinator exposes the repositories.
+                         No trailing slash.
+          serialized_task: An arbitrary object as returned by
+                           :py:meth:`CoordinatorBuildSystem.serialize_task` from the matching
+                           :py:class:`CoordinatorBuildSystem` implementation.
         """
 
 
