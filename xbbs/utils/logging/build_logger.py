@@ -38,7 +38,7 @@ class BuildLogger:
         Args:
           out_stream: Where to write the formatted output.
         """
-        self.out_stream = out_stream
+        self.out_stream: T.Final = out_stream
         """
         Where to write the formatted output.
 
