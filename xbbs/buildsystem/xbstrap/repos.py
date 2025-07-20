@@ -174,6 +174,7 @@ async def deposit_artifact(
             name = artifact.data.name
             tool_in_repo = path.join(repo_dir, artifact.repo_file_path)
             tool_repo = path.dirname(tool_in_repo)
+            tool_filename = path.basename(tool_in_repo)
             os.makedirs(tool_repo, exist_ok=True)
             shutil.move(artifact_file, tool_in_repo)
 
@@ -181,6 +182,17 @@ async def deposit_artifact(
             versions = read_tool_repo_versions(tool_repo)
             versions[name] = version
             write_tool_repo_version(tool_repo, versions)
+
+            if arch == "noarch":
+                # Also link into all repos.  We intentionally leave their tool versions unaffected
+                # because they will be merged together at incremental build load time anyway.
+                for arch in all_arches:
+                    arch_repo = path.join(repo_dir, "tools", arch)
+                    os.makedirs(arch_repo, exist_ok=True)
+                    os.symlink(
+                        path.join("../noarch", tool_filename),
+                        path.join(arch_repo, tool_filename),
+                    )
             return
 
         case ArtifactType.FILE:
