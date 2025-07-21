@@ -66,7 +66,6 @@ class TaskResponse(BaseModel):
     Build system-specific information, as obtained by
     :py:meth:`xbbs.buildsystem.CoordinatorBuildSystem.serialize_task`.
     """
-    # TODO(arsen): mirror URL
 
 
 class CancelTask(BaseModel):
