@@ -40,21 +40,21 @@ A message of yet-undetermined type.
 """
 
 
-class MessageWrapper(pydantic.BaseModel):
-    m: AnyMessage = pydantic.Field(discriminator="msg_type")
-    """Actual message body."""
+_AnnotatedAnyMessage: T.TypeAlias = T.Annotated[
+    AnyMessage, pydantic.Field(discriminator="msg_type")
+]
+_ANY_MESSAGE_ADAPTER = pydantic.TypeAdapter[_AnnotatedAnyMessage](_AnnotatedAnyMessage)
 
 
 def serialize(message: AnyMessage) -> bytes:
     """
     Encapsulate a message into a MesagePack string.
     """
-    return msgpack.packb(MessageWrapper(m=message).model_dump(mode="json"))
+    return msgpack.packb(_ANY_MESSAGE_ADAPTER.dump_python(message, mode="json"))
 
 
 def deserialize(message: bytes) -> AnyMessage:
     """
     Decode a message previously saved using :py:func:`serialize`.
     """
-    wrapped = MessageWrapper.model_validate(msgpack.unpackb(message))
-    return wrapped.m
+    return _ANY_MESSAGE_ADAPTER.validate_python(msgpack.unpackb(message))
