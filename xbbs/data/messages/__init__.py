@@ -25,7 +25,7 @@ import pydantic
 
 from . import heartbeat, tasks
 
-ALL_MSG_TYPES: T.TypeAlias = T.Union[
+AnyMessage: T.TypeAlias = T.Union[
     # Heartbeats.
     heartbeat.WorkerHeartbeat,
     # Task messages.
@@ -41,18 +41,18 @@ A message of yet-undetermined type.
 
 
 class MessageWrapper(pydantic.BaseModel):
-    m: ALL_MSG_TYPES = pydantic.Field(discriminator="msg_type")
+    m: AnyMessage = pydantic.Field(discriminator="msg_type")
     """Actual message body."""
 
 
-def serialize(message: ALL_MSG_TYPES) -> bytes:
+def serialize(message: AnyMessage) -> bytes:
     """
     Encapsulate a message into a MesagePack string.
     """
     return msgpack.packb(MessageWrapper(m=message).model_dump(mode="json"))
 
 
-def deserialize(message: bytes) -> ALL_MSG_TYPES:
+def deserialize(message: bytes) -> AnyMessage:
     """
     Decode a message previously saved using :py:func:`serialize`.
     """
