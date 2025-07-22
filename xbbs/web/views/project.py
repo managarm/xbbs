@@ -98,7 +98,7 @@ def _inject_page_number() -> None:
 def history_and_overview(slug: str) -> str:
     _check_slug(slug)
     work_root = get_coordinator_work_root()
-    builds = sorted(extract_current_page(xbu_h.get_project_builds(work_root, slug)), reverse=True)
+    builds = extract_current_page(sorted(xbu_h.get_project_builds(work_root, slug), reverse=True))
 
     def _read_build(build: str) -> tuple[str, xbc_b.DbBuild]:
         # This BuildId conversion is OK since get_project_builds is guaranteed to give us valid
