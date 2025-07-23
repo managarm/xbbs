@@ -109,6 +109,10 @@ async def deposit_artifact(
       signing_key: Signing key to use to sign package files, if any.
     """
     assert "noarch" not in all_arches
+
+    # Fix the temporary file permissions being over-restrictive.
+    os.chmod(artifact_file, 0o644)
+
     # TODO(arsen): This function will not do cleanup on partial success
     match artifact.data.artifact_type:
         case ArtifactType.PACKAGE:
