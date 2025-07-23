@@ -48,14 +48,20 @@ if T.TYPE_CHECKING:
 SendTaskCallback: T.TypeAlias = T.Callable[
     [str, xbm_tasks.TaskResponse, set[str]], T.Coroutine[T.Any, T.Any, None]
 ]
+AllocExecutionCallback: T.TypeAlias = T.Callable[["Build"], T.Coroutine[T.Any, T.Any, "Execution"]]
 
 
 def _mark_fail(self: "Build", graph: dag.Graph, product_id: str) -> None:
+    # If a product was up-to-date before we started, we do have it.
+    if product_id in self._done_artifacts:
+        return
+
     try:
         mark_artifact_missing(self.build_dir, product_id)
     except Exception:
         self.log_io.exception(f"failed to mark artifact {product_id} as failed")
         pass
+
     for node in graph.nodes.values():
         if self._node_states[node.identifier] == dag.NodeState.UNSATISFIABLE:
             # Visited already.
@@ -162,7 +168,7 @@ def _find_work(
     self: "Build",
     graph: dag.Graph,
     executions_group: asyncio.TaskGroup,
-    alloc_execution: T.Callable[["Build"], T.Coroutine[T.Any, T.Any, "Execution"]],
+    alloc_execution: AllocExecutionCallback,
     send_task: SendTaskCallback,
 ) -> bool:
     some_waiting = False
@@ -184,7 +190,7 @@ def _find_work(
 async def _solve_graph(
     self: "Build",
     graph: dag.Graph,
-    alloc_execution: T.Callable[["Build"], T.Coroutine[T.Any, T.Any, "Execution"]],
+    alloc_execution: AllocExecutionCallback,
     send_task: SendTaskCallback,
 ) -> None:
     async with asyncio.TaskGroup() as executions_group:
