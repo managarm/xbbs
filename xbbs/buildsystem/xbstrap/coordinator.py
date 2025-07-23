@@ -21,7 +21,6 @@ This module contains the coordinator build system implementation based on xbstra
 import asyncio
 import itertools
 import json
-import os
 import os.path as path
 import shutil
 import typing as T
@@ -148,7 +147,9 @@ class XbstrapCoordinatorBuildSystem(CoordinatorBuildSystem):
         # TODO(arsen): xbstrap assumes one arch here..
         tool_repos = path.join(self.repo_directory, "tools")
         pkg_repos = path.join(self.repo_directory, "packages")
-        arches = set().union(os.listdir(tool_repos), os.listdir(pkg_repos))
+        arches = set().union(
+            xbu_fs.listdir_or_empty(tool_repos), xbu_fs.listdir_or_empty(pkg_repos)
+        )
         arches.discard("noarch")
         if len(arches) > 1:
             raise RuntimeError("multiarch build not supported by xbstrap yet")

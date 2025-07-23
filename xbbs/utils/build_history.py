@@ -18,9 +18,9 @@
 This module contains functions used to work with project build histories.
 """
 
-import os
 import os.path as path
 
+import xbbs.utils.fs as xbu_fs
 import xbbs.utils.ts as xbu_ts
 
 
@@ -41,6 +41,6 @@ def get_project_builds(coordinator_root: str, project_slug: str | None = None) -
             project_dir = get_project_dir(coordinator_root, project_slug)
         else:
             project_dir = coordinator_root
-        return list(filter(xbu_ts.parse_build_id_into_ts, os.listdir(project_dir)))
+        return list(filter(xbu_ts.parse_build_id_into_ts, xbu_fs.listdir_or_empty(project_dir)))
     except FileNotFoundError:
         return []

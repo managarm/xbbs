@@ -63,3 +63,13 @@ def atomic_write_open(fpath: str, mode: str) -> T.Generator[T.IO[T.Any], None, N
             os.unlink(f.name)
             raise
         os.rename(f.name, fpath)
+
+
+def listdir_or_empty(dir: str) -> list[str]:
+    """
+    As :py:func:`os.listdir`, but returns an empty list instead of raising ``FileNotFoundError``.
+    """
+    try:
+        return os.listdir(dir)
+    except FileNotFoundError:
+        return []

@@ -22,7 +22,6 @@ days, keeping at least one successful build, and the latest build.
 # TODO(arsen): this should be more flexible
 
 import datetime as dt
-import os
 import os.path as path
 import shutil
 import typing as T
@@ -30,6 +29,7 @@ import typing as T
 import xbbs.coordinator.build_state as xbc_bs
 import xbbs.data.config as config
 import xbbs.utils.argparse as xbu_cli
+import xbbs.utils.fs as xbu_fs
 import xbbs.utils.ts as xbu_ts
 
 
@@ -42,7 +42,7 @@ def rotate_project_by_directory(project_dir: str, max_age: dt.timedelta) -> list
     """
     builds = [
         (ts, build)
-        for build in os.listdir(project_dir)
+        for build in xbu_fs.listdir_or_empty(project_dir)
         if (ts := xbu_ts.parse_build_id_into_ts(build))
     ]
     builds.sort()
@@ -88,7 +88,7 @@ def rotate_projects(
     """
     projects_dir = path.join(work_root, "projects")
     dirs_to_remove = []
-    for project in os.listdir(projects_dir):
+    for project in xbu_fs.listdir_or_empty(projects_dir):
         if not project_filter(project):
             continue
 
