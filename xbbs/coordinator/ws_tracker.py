@@ -19,7 +19,6 @@ This module contains code that helps track active WebSocket connections and help
 application shutdown.
 """
 
-import asyncio
 import logging
 import weakref
 
