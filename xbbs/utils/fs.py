@@ -73,3 +73,11 @@ def listdir_or_empty(dir: str) -> list[str]:
         return os.listdir(dir)
     except FileNotFoundError:
         return []
+
+
+def symlink_exist_ok(src: str, dst: str) -> None:
+    try:
+        return os.symlink(src, dst)
+    except FileExistsError:
+        # Existing is OK.
+        pass

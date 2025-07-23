@@ -167,7 +167,7 @@ async def deposit_artifact(
                 for arch in all_arches:
                     arch_repo = path.join(repo_dir, "packages", arch)
                     os.makedirs(arch_repo, exist_ok=True)
-                    os.symlink(
+                    xbu_fs.symlink_exist_ok(
                         path.join("../noarch", package_filename),
                         path.join(arch_repo, package_filename),
                     )
@@ -197,7 +197,7 @@ async def deposit_artifact(
                 for arch in all_arches:
                     arch_repo = path.join(repo_dir, "tools", arch)
                     os.makedirs(arch_repo, exist_ok=True)
-                    os.symlink(
+                    xbu_fs.symlink_exist_ok(
                         path.join("../noarch", tool_filename),
                         path.join(arch_repo, tool_filename),
                     )
