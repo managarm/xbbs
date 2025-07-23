@@ -156,10 +156,14 @@ async def deposit_artifact(
                     filename,
                     cwd=arch_repo,
                 )
+                # Remove obsoletes.
+                await _xbps_rindex(arch, "-r", arch_repo, cwd=arch_repo)
 
             if arch == "noarch":
                 # Duplicate into all repos, not the noarch one, as those are what
                 # xbps-install will be reading.
+                # TODO(arsen): remove obsoletes from noarch, or switch to (ab)using reflinks for
+                # deduplication
                 for arch in all_arches:
                     arch_repo = path.join(repo_dir, "packages", arch)
                     os.makedirs(arch_repo, exist_ok=True)
