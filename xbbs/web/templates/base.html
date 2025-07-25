@@ -25,7 +25,7 @@
   <body>
     <header>
       <a href="{{ url_for("overview.overview") }}">xbbs @ {{ g.status.hostname }}</a>
-      (load: {{ g.status.load_avg|join(", ") }})
+      (load: {{ g.status.load_avg|render_load }})
     </header>
 
     <div class="grow-1 flex flex-col p-3">{% block body %}{% endblock %}</div>

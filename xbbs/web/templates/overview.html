@@ -44,7 +44,7 @@
       {% for worker in g.status.workers %}
         <div class="p-3">
           <span class="font-mono">{{ worker.hostname }}</span>
-          (load: {{ worker.load_avg|join(", ") }})<br>
+          (load: {{ worker.load_avg|render_load }})<br>
           <div>Last seen {{ worker.last_seen|humanize_as_delta }}</div>
           {% if worker.current_execution %}
             {% set exec = worker.current_execution %}

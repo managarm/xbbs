@@ -155,6 +155,10 @@ def render_state_colorless(state: ArtifactState | NodeState | BuildState | Execu
     return _STATE_NAMES[state]
 
 
+def render_load(load: tuple[float, float, float]) -> str:
+    return ", ".join(f"{x:.2f}" for x in load)
+
+
 def create_app() -> Flask:
     app = Flask(__name__)
     app.config.from_prefixed_env("XBBS")
@@ -176,6 +180,7 @@ def create_app() -> Flask:
     app.add_template_filter(humanize.naturaldelta)
     app.add_template_filter(render_state)
     app.add_template_filter(render_state_colorless)
+    app.add_template_filter(render_load)
 
     app.before_request(get_coord_status)
 
