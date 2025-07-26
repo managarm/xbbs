@@ -31,6 +31,7 @@ dependencies = [
     "Flask",
     "requests",
     "humanize",
+    "pybadges",
 ]
 
 [project.optional-dependencies]

@@ -268,3 +268,35 @@ def get_repo_file(slug: str, build: str, repo_file: str) -> Response:
     repo_dir = path.join(project_dir, _resolve_build_id(project_dir, build), "repo")
 
     return send_from_directory(repo_dir, repo_file)
+
+
+@bp.get("/<project_slug:slug>/badge")
+def project_badge(slug: str) -> Response:
+    _check_slug(slug)
+
+    work_root = get_coordinator_work_root()
+    project_dir = xbu_h.get_project_dir(work_root, slug)
+    latest_build = _resolve_build_id(project_dir, "latest")
+
+    conn = xbc_b.open_build_db(path.join(project_dir, latest_build))
+    try:
+        build_obj = xbc_b.read_build_object(conn)
+    finally:
+        conn.close()
+
+    if not build_obj.state.is_final:
+        text = "running"
+        color = "yellow"
+    elif build_obj.state.is_success:
+        text = "success"
+        color = "green"
+    else:
+        text = "failed"
+        color = "red"
+
+    import pybadges  # type: ignore
+
+    return Response(
+        pybadges.badge(left_text=slug, right_text=text, right_color=color),
+        mimetype="image/svg+xml",
+    )
