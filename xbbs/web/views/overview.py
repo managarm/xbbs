@@ -16,11 +16,38 @@
 
 """Overview page of ``xbbs-web``."""
 
-from flask import Blueprint, render_template
+import os.path as path
+
+from flask import Blueprint, g, render_template
+
+import xbbs.coordinator.build_state as xbc_b
+import xbbs.utils.build_history as xbu_h
+from xbbs.web.config import get_coordinator_work_root
 
 bp = Blueprint("overview", __name__)
 
 
 @bp.get("/")
 def overview() -> str:
-    return render_template("overview.html")
+    # Load latest build state for overview
+    last_build_and_state: dict[str, tuple[str, xbc_b.BuildState]] = {}
+
+    for p in g.status.projects:
+        assert isinstance(p, str)
+        project_dir = xbu_h.get_project_dir(get_coordinator_work_root(), p)
+        builds = sorted(xbu_h.get_project_builds(project_dir), reverse=True)
+        for candidate in builds:
+            conn = xbc_b.open_build_db(path.join(project_dir, candidate))
+            try:
+                build_obj = xbc_b.read_build_object(conn)
+            finally:
+                conn.close()
+
+            # We already have a "running" indicator so this'd be redundant.
+            if not build_obj.state.is_final:
+                continue
+
+            last_build_and_state[p] = (candidate, build_obj.state)
+            break
+
+    return render_template("overview.html", last_build_and_state=last_build_and_state)

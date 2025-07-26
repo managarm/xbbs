@@ -30,6 +30,18 @@
           {% if project.running %}{{ icons.pickaxe(class="icon") }}{% endif %}
           <br>
           <p>{{ project.description }}</p>
+          {% if slug in(last_build_and_state) %}
+            {% set (buildid, state) = last_build_and_state[slug] %}
+            <div>
+              <a href="{{ url_for(
+                         "project.history_and_overview",
+                         slug=slug,
+                         _anchor="build-" + buildid
+                         ) }}">
+                Latest build
+              </a> state: {{ state|render_state }}
+            </div>
+          {% endif %}
         </div>
       {% else %}
         No projects configured.
