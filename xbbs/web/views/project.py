@@ -296,7 +296,10 @@ def project_badge(slug: str) -> Response:
 
     import pybadges  # type: ignore
 
-    return Response(
+    response = Response(
         pybadges.badge(left_text=slug, right_text=text, right_color=color),
         mimetype="image/svg+xml",
     )
+    response.cache_control.max_age = 60
+
+    return response
