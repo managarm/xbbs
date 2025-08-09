@@ -30,7 +30,7 @@ def create_root_parser(description: str) -> argparse.ArgumentParser:
     from xbbs import __version__
 
     parser = argparse.ArgumentParser(
-        description=description, epilog="Report bugs at <https://github.com/managarm/xbbs/new/>."
+        description=description, epilog="Report bugs at <https://github.com/managarm/xbbs/>."
     )
     parser.add_argument(
         "--version",
