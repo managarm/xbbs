@@ -54,6 +54,7 @@ dev = [
 xbbs-coordinator = "xbbs.coordinator:main"
 xbbs-worker = "xbbs.worker:main"
 xbbs-rotate-builds = "xbbs.utils.rotation:main"
+xbbs-cli = "xbbs.cli:main"
 
 [tool.mypy]
 strict = true
