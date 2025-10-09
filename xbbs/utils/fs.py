@@ -15,7 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 """
-This package contains utilities used for dealing with the filesystem.
+This module contains utilities used for dealing with the filesystem.
 """
 
 import contextlib
