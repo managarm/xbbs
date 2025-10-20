@@ -64,6 +64,9 @@ class WorkerStatus(BaseModel):
     current_execution: CurrentExecution | None
     """If present, the active execution.  Otherwise, the worker is resting."""
 
+    capabilities: set[str] | None
+    """If present, last capabilities set seen from the given worker."""
+
 
 class Project(BaseModel):
     """

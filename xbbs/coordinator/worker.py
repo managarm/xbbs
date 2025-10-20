@@ -55,6 +55,10 @@ class WorkerTracker:
         """
         Last received heartbeat message, and when it was received.
         """
+        self.last_capabilities: set[str] | None = None
+        """
+        Last capabilities set received from the worker.
+        """
 
         self._task_wait_task: asyncio.Task[None] | None = None
 
@@ -90,6 +94,7 @@ class WorkerTracker:
             load_avg=hb.load_avg,
             last_seen=ls,
             current_execution=self.current_execution,
+            capabilities=self.last_capabilities,
         )
 
     async def start_wait_for_task(self, capabilities: set[str]) -> None:
@@ -103,6 +108,8 @@ class WorkerTracker:
 
             if self.current_execution is not None:
                 return
+
+            self.last_capabilities = capabilities
 
             async def _wait_for_task() -> None:
                 task = await self.coordinator_state.outgoing_task_queue.dequeue(capabilities)
