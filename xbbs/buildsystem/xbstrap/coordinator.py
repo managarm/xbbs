@@ -21,6 +21,7 @@ This module contains the coordinator build system implementation based on xbstra
 import asyncio
 import itertools
 import json
+import os
 import os.path as path
 import shutil
 import typing as T
@@ -114,6 +115,10 @@ class XbstrapCoordinatorBuildSystem(CoordinatorBuildSystem):
         if self.previous_repo_directory:
             await asyncio.to_thread(self._initialize_repositories)
 
+        # Prepare a directory for extras
+        extras_repos = path.join(self.repo_directory, "extras")
+        os.makedirs(extras_repos)
+
         # Install the distfiles.
         distfile_path = self.project.buildsystem.distfile_path
         if distfile_path:
@@ -201,6 +206,11 @@ class XbstrapCoordinatorBuildSystem(CoordinatorBuildSystem):
             commits_file = path.join(self.src_directory, "bootstrap-commits.yml")
             with open(commits_file, "w") as rf:
                 json.dump({"commits": commits_object}, rf)
+
+            # Copy it into the extras repository also, for debugging.
+            shutil.copy2(
+                commits_file, path.join(self.repo_directory, "extras/bootstrap-commits.yml")
+            )
 
         await asyncio.to_thread(_write_comm_object)
         del _write_comm_object
