@@ -41,10 +41,6 @@ def main() -> None:
 
     app.add_routes(worker_socket.blueprint)
 
-    from . import admin_routes
-
-    app.add_routes(admin_routes.blueprint)
-
     from . import project_routes
 
     app.add_routes(project_routes.blueprint)
