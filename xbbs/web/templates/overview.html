@@ -16,6 +16,12 @@
 {% extends "base.html" %}
 {% block title %}Overview{% endblock %}
 
+{% macro render_caps(worker) %}
+  {%- for cap in worker.capabilities -%}
+    <span class="font-mono">{{ cap }}</span>{{ ", " if not loop.last }}
+  {%- endfor -%}
+{% endmacro %}
+
 {% import "icons.html" as icons %}
 {% block body %}
   <div>
@@ -56,7 +62,8 @@
       {% for worker in g.status.workers %}
         <div class="p-3">
           <span class="font-mono">{{ worker.hostname }}</span>
-          (load: {{ worker.load_avg|render_load }})<br>
+          (load: {{ worker.load_avg|render_load }}
+            {%- if worker.capabilities %}, caps: {{ render_caps(worker) }}{% endif %})<br>
           <div>Last seen {{ worker.last_seen|humanize_as_delta }}</div>
           {% if worker.current_execution %}
             {% set exec = worker.current_execution %}
