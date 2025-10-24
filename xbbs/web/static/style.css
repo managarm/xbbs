@@ -25,7 +25,9 @@
     --color-gray-500: oklch(0.551 0.027 264.364);
     --color-neutral-900: oklch(20.5% 0 0);
 
-    --color-background: #fefefe;
+    --color-nearly-white: #fefefe;
+
+    --color-background: var(--color-nearly-white);
     --color-foreground: #333;
     --color-inverted-background: #111;
     --color-inverted-foreground: #ddd;
@@ -181,4 +183,18 @@ table.pretty-table tr:nth-child(odd of :has(td)) {
 
 .w-full {
     width: 100%;
+}
+
+/* Please forgive me.  See <https://github.com/managarm/xbbs/issues/24>.  */
+:has(> #noscript-log-viewer) {
+    width: 100%;
+    height: 100%;
+}
+
+#noscript-log-viewer {
+    width: 100%;
+    height: 100%;
+    /* The color property has no effect on iframe contents, so lets just give
+       it a more legible background.  */
+    background-color: var(--color-nearly-white);
 }
