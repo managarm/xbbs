@@ -47,7 +47,7 @@ ADD pyproject.toml \
 # Separate step because Docker copies contents
 ADD xbbs /src/xbbs
 
-RUN . /venv/bin/activate && pip install -e '/src/[dev]'
+RUN . /venv/bin/activate && pip install -e '/src/'
 
 COPY --chmod=755 <<"EOF" /run_xbbs.sh
 #!/bin/sh
