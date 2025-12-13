@@ -186,21 +186,57 @@ def validate_graph(graph: Graph) -> None:
         raise GraphConsistencyError("Artifact identifiers not consistent")
 
     # Verify that each artifact is produced by exactly one node.
-    seen_artifacts = set[str]()
+    product_node = dict[str, Node]()
     for node in graph.nodes.values():
         for product in node.products:
-            if product in seen_artifacts:
+            if product in product_node:
                 raise GraphConsistencyError(f"Product {product!r} produced multiple times")
-            seen_artifacts.add(product)
+            product_node[product] = node
 
-    orphan_artifact = next((x for x in graph.artifacts.keys() if x not in seen_artifacts), None)
+    orphan_artifact = next((x for x in graph.artifacts.keys() if x not in product_node), None)
     if orphan_artifact:
         raise GraphConsistencyError(f"Artifact {orphan_artifact!r} is orphaned (has no producer)")
 
-    missing_artifact = next((x for x in seen_artifacts if x not in graph.artifacts.keys()), None)
+    missing_artifact = next((x for x in product_node if x not in graph.artifacts.keys()), None)
     if missing_artifact:
         raise GraphConsistencyError(
             f"Artifact {missing_artifact!r} is missing (produced but not emitted)"
         )
 
-    # TODO(arsen): check for cycles
+    # Check for cycles.
+    # Unmapped node ID: unmarked
+    # Node ID -> False: Temporary mark
+    #         ->  True: Permanent mark
+    marks = dict[str, bool]()
+    # Path on which a circular dependency was found.
+    dep_path = list[str]()
+
+    def _visit(node: Node) -> None:
+        if marks.get(node.identifier, False):
+            # Fully processed.
+            return
+        if not marks.get(node.identifier, True):
+            # Cyclical dependency.  Construct a path.
+            full_path = dep_path
+            for i in range(len(dep_path) - 2, -1, -1):
+                if dep_path[i] == node.identifier:
+                    full_path = dep_path[i:]
+                    break
+
+            path_str = " -> ".join(full_path)
+            raise GraphConsistencyError(f"Detected circular dependency ({path_str})")
+
+        marks[node.identifier] = False
+
+        for dependency in node.dependencies:
+            dep_node = product_node[dependency]
+            dep_path.append(dep_node.identifier)
+            _visit(dep_node)
+            dep_path.pop()
+
+        marks[node.identifier] = True
+
+    for node in graph.nodes.values():
+        dep_path.append(node.identifier)
+        _visit(node)
+        dep_path.pop()
