@@ -2,4 +2,4 @@ coordinator_url = "http://coordinator:10999/"
 work_root = "/work"
 log = { debug = true }
 # All caps managarm currently uses.
-capabilities = ["kvm", "test-images", "builder"]
+capabilities = ["kvm", "test-images", "builder", "heavy"]
