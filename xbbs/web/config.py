@@ -25,3 +25,13 @@ def get_coordinator_work_root() -> str:
     """Get the coordinator work root directory."""
     # Verified in __init__.py:create_app
     return T.cast(str, current_app.config.get("COORDINATOR_WORK_ROOT"))
+
+
+def get_nginx_xaccel_coord_root() -> str | None:
+    """
+    Get path of NGINX internal route where the coordinator root is exposed, if any.
+
+    If present, requests that reply with repository files will be left handled using the NGINX
+    ``X-Accel-Redirect`` header.
+    """
+    return T.cast(str | None, current_app.config.get("NGINX_XACCEL_COORD_ROOT"))

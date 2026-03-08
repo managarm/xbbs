@@ -17,10 +17,13 @@
 """
 A few utilities for web-related tasks.
 """
-
+import mimetypes
 import typing as T
 
-from flask import request
+from flask import Response, request, send_from_directory
+from werkzeug.security import safe_join
+
+from xbbs.web.config import get_coordinator_work_root, get_nginx_xaccel_coord_root
 
 
 def get_page_number() -> int:
@@ -49,3 +52,37 @@ def extract_current_page(dataset: list[Element]) -> list[Element]:
     page = get_page_number()
     limit = get_page_size()
     return dataset[page * limit : (page + 1) * limit]
+
+
+def send_from_coord_root_using_xaccel(directory: str, file: str) -> Response:
+    """
+    Try sending ``file`` in ``directory`` as if using Flask :func:`send_from_directory`, but using
+    NGINX ``X-Accel-Redirect``, if possible.
+    """
+    # TODO(arsen): This is ugly and can definitely be done better.
+    coord_root = get_coordinator_work_root()
+    xaccel_coord_root = get_nginx_xaccel_coord_root()
+    if not xaccel_coord_root:
+        return send_from_directory(directory, file)
+
+    real_path = safe_join(directory, file)
+    if not real_path:
+        # Let it raise the usual error.
+        return send_from_directory(directory, file)
+
+    # Check if this path is strictly in coord_root
+    coord_root = coord_root.rstrip("/")
+    if not real_path.startswith(f"{coord_root}/"):
+        return send_from_directory(directory, file)
+
+    xaccel_url = real_path.removeprefix(coord_root)
+
+    mimetype, encoding = mimetypes.guess_file_type(real_path)
+    if not mimetype:
+        mimetype = "application/octet-stream"
+
+    return Response(
+        status=200,
+        headers={"X-Accel-Redirect": xaccel_coord_root + xaccel_url},
+        content_type=mimetype,
+    )

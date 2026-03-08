@@ -64,7 +64,7 @@ services:
     image: xbbs-devrt
     pull_policy: never
     ports:
-      - 8000:5000/tcp
+      - 8001:5000/tcp
     build:
       context: ../
       dockerfile: docker/Dockerfile-devrt
@@ -72,7 +72,19 @@ services:
       - work:/work
       - ../xbbs:/src/xbbs:ro
     environment:
-      XBBS_CMD: FLASK_APP=xbbs.web.wsgi FLASK_ENV=development XBBS_COORDINATOR_URL=http://coordinator:10999/ XBBS_COORDINATOR_WORK_ROOT=/work/ exec flask run --debug -h 0.0.0.0
+      XBBS_CMD: FLASK_APP=xbbs.web.wsgi FLASK_ENV=development XBBS_NGINX_XACCEL_COORD_ROOT=/int_coord_root XBBS_COORDINATOR_URL=http://coordinator:10999/ XBBS_COORDINATOR_WORK_ROOT=/work/ exec flask run --debug -h 0.0.0.0
+
+  web_nginx:
+    image: nginx:1
+    ports:
+      - 8000:80/tcp
+    volumes:
+      - work:/work:ro
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    develop:
+      watch:
+        - action: restart
+          path: ./nginx.conf
 
   mirror_server:
     build:

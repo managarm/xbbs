@@ -34,7 +34,11 @@ import xbbs.coordinator.build_state as xbc_b
 import xbbs.utils.build_history as xbu_h
 from xbbs.buildsystem.dag import NodeState
 from xbbs.web.config import get_coordinator_work_root
-from xbbs.web.utils import extract_current_page, get_page_number
+from xbbs.web.utils import (
+    extract_current_page,
+    get_page_number,
+    send_from_coord_root_using_xaccel,
+)
 
 bp = Blueprint("project", __name__)
 # TODO(arsen): use this thing across the entire project
@@ -267,7 +271,7 @@ def get_repo_file(slug: str, build: str, repo_file: str) -> Response:
     project_dir = xbu_h.get_project_dir(work_root, slug)
     repo_dir = path.join(project_dir, _resolve_build_id(project_dir, build), "repo")
 
-    return send_from_directory(repo_dir, repo_file)
+    return send_from_coord_root_using_xaccel(repo_dir, repo_file)
 
 
 @bp.get("/<project_slug:slug>/badge")
