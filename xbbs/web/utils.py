@@ -77,7 +77,7 @@ def send_from_coord_root_using_xaccel(directory: str, file: str) -> Response:
 
     xaccel_url = real_path.removeprefix(coord_root)
 
-    mimetype, encoding = mimetypes.guess_file_type(real_path)
+    mimetype, encoding = mimetypes.guess_type(real_path)
     if not mimetype:
         mimetype = "application/octet-stream"
 
