@@ -37,7 +37,21 @@ from .raw_dag import (
 class ArtifactType(enum.StrEnum):
     TOOL = "tool"
     PACKAGE = "package"
+    ROOTFS = "rootfs"
+    ROOTFS_METADATA = "rootfs-metadata"
     FILE = "file"
+
+
+ROOTFS_ARTIFACT_TYPES: T.Final = (ArtifactType.ROOTFS, ArtifactType.ROOTFS_METADATA)
+"""
+Each rootfs consists of two artifacts: its tarball and a small metadata file that
+``xbstrap`` reads to decide whether it has to download the tarball.
+
+The architecture of these artifacts is the architecture of the host that runs the
+rootfs.  It is unrelated to the architecture that the project builds for.  ``xbstrap``
+reports the architecture of the host that computes the graph, so the coordinator and
+all workers have to run on the same architecture.
+"""
 
 
 def artifact_identifier(atype: ArtifactType, arch: str, name: str) -> str:
@@ -54,7 +68,12 @@ class XbstrapArtifactFileData(BaseModel):
 
 
 class XbstrapArtifactData(BaseModel):
-    artifact_type: T.Literal[ArtifactType.PACKAGE, ArtifactType.TOOL]
+    artifact_type: T.Literal[
+        ArtifactType.PACKAGE,
+        ArtifactType.TOOL,
+        ArtifactType.ROOTFS,
+        ArtifactType.ROOTFS_METADATA,
+    ]
     name: str
     version: str
     architecture: str
@@ -70,6 +89,15 @@ class XbstrapArtifactData(BaseModel):
             case ArtifactType.TOOL:
                 return path.join(
                     "tools", self.architecture, f"{self.name}.tar.gz"  # XXX(arsen): assumes gzip
+                )
+            # These are the file names that xbstrap archive-rootfs and pull-rootfs use.
+            case ArtifactType.ROOTFS:
+                return path.join(
+                    "rootfses", f"{self.name}-{self.version}.{self.architecture}.tar.zstd"
+                )
+            case ArtifactType.ROOTFS_METADATA:
+                return path.join(
+                    "rootfses", f"{self.name}-{self.version}.{self.architecture}.json"
                 )
 
         # Should cover all cases.
@@ -127,6 +155,7 @@ def parse_raw_dag_into_xbbs_dag(raw_dag: dict[str, PipelineJob]) -> XbstrapGraph
         for type, artifact in itertools.chain(
             ((ArtifactType.TOOL, a) for a in products.tools),
             ((ArtifactType.PACKAGE, a) for a in products.pkgs),
+            ((t, a) for a in products.rootfses for t in ROOTFS_ARTIFACT_TYPES),
         ):
             # Pacify mypy, it doesn't deduce the literal TOOL and PACKAGE.
             assert type != ArtifactType.FILE
@@ -162,6 +191,11 @@ def parse_raw_dag_into_xbbs_dag(raw_dag: dict[str, PipelineJob]) -> XbstrapGraph
             def _get_artifact_pairs() -> T.Generator[tuple[ArtifactType, str, str], None, None]:
                 yield from ((ArtifactType.TOOL, a.name, a.architecture) for a in table.tools)
                 yield from ((ArtifactType.PACKAGE, a.name, a.architecture) for a in table.pkgs)
+                yield from (
+                    (t, a.name, a.architecture)
+                    for a in table.rootfses
+                    for t in ROOTFS_ARTIFACT_TYPES
+                )
                 if isinstance(table, PipelineJobProducts):
                     yield from ((ArtifactType.FILE, a.name, a.architecture) for a in table.files)
 

@@ -72,6 +72,38 @@ def write_tool_repo_version(tool_repo: str, versions: dict[str, str]) -> None:
         json.dump(versions, f)
 
 
+def read_rootfs_repo_versions(rootfs_repo: str) -> dict[str, str]:
+    """
+    Read the versions of the rootfses in ``rootfs_repo`` from their metadata files.
+    Rootfses without a tarball are not reported.
+    """
+    versions = dict[str, str]()
+    for filename in xbu_fs.listdir_or_empty(rootfs_repo):
+        if not filename.endswith(".json"):
+            continue
+        if not path.exists(path.join(rootfs_repo, filename.removesuffix(".json") + ".tar.zstd")):
+            continue
+        # A rootfs with broken metadata is rebuilt.
+        try:
+            with open(path.join(rootfs_repo, filename), "r") as f:
+                metadata = json.load(f)
+            versions[metadata["name"]] = metadata["version"]
+        except (KeyError, TypeError, ValueError):
+            continue
+    return versions
+
+
+def remove_unknown_rootfs_files(rootfs_repo: str, known_filenames: set[str]) -> None:
+    """
+    Remove all files except for ``known_filenames`` from ``rootfs_repo``, such that
+    incremental builds do not accumulate the rootfses of previous builds (e.g., other
+    versions of a rootfs).
+    """
+    for filename in xbu_fs.listdir_or_empty(rootfs_repo):
+        if filename not in known_filenames:
+            os.unlink(path.join(rootfs_repo, filename))
+
+
 async def deposit_artifact(
     repo_dir: str,
     artifact: XbstrapArtifact,
@@ -96,6 +128,11 @@ async def deposit_artifact(
     For :py:data:`ArtifactType.TOOL` artifacts, the ``filename`` is is
     ``{name}.tar.gz``, and the artifact is registered into a tool registry file, which
     saves a mapping from each tool to the version its archive is at.
+
+    :py:data:`ArtifactType.ROOTFS` and :py:data:`ArtifactType.ROOTFS_METADATA` artifacts
+    are stored under ``${repo_dir}/rootfses/`` regardless of their architecture.  Their
+    file names are ``{name}-{version}.{architecture}.tar.zstd`` and
+    ``{name}-{version}.{architecture}.json``.
 
     Note that this function provides no concurrency guarantees.
 
@@ -201,6 +238,12 @@ async def deposit_artifact(
                         path.join("../noarch", tool_filename),
                         path.join(arch_repo, tool_filename),
                     )
+            return
+
+        case ArtifactType.ROOTFS | ArtifactType.ROOTFS_METADATA:
+            rootfs_file = path.join(repo_dir, artifact.repo_file_path)
+            os.makedirs(path.dirname(rootfs_file), exist_ok=True)
+            shutil.move(artifact_file, rootfs_file)
             return
 
         case ArtifactType.FILE:

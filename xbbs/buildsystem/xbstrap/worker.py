@@ -37,7 +37,7 @@ from xbbs.utils.logging.build_logger import BuildLogger
 
 from .. import ArtifactHelper, WorkerBuildSystem
 from .common import XbstrapTask
-from .dag import ArtifactType, artifact_identifier
+from .dag import ROOTFS_ARTIFACT_TYPES, ArtifactType, artifact_identifier
 
 logger = logging.getLogger(__name__)
 
@@ -119,9 +119,10 @@ class XbstrapWorkerBuildSystem(WorkerBuildSystem):
                 pubkey.write(key)
 
         arches = set(
-            self.task.referenced_artifacts[dependency].data.architecture
-            for dependency in self.task.task.dependencies
-            if self.task.referenced_artifacts[dependency].data.architecture != "noarch"
+            dependency.data.architecture
+            for dependency in self.task.get_dependencies()
+            if dependency.data.architecture != "noarch"
+            and dependency.data.artifact_type not in ROOTFS_ARTIFACT_TYPES
         )
 
         if len(arches) >= 2:
@@ -179,6 +180,20 @@ class XbstrapWorkerBuildSystem(WorkerBuildSystem):
                 else:
                     tar.extractall(path=this_tool_dir)
 
+        # Prepare the rootfses.  Job directories are not kept but the cache of xbstrap is,
+        # so xbstrap only downloads the tarball of a rootfs if the cache does not have it.
+        for artifact in self.task.get_dependencies():
+            if artifact.data.artifact_type != ArtifactType.ROOTFS:
+                continue
+            rootfs_repo = path.dirname(artifact.repo_file_path)
+            await self._cmd(
+                "xbstrap",
+                "pull-rootfs",
+                "--repository-url",
+                f"{self.repo_base_url}/{rootfs_repo}/",
+                artifact.data.name,
+            )
+
         (notification_pipe_r, notification_pipe_w) = os.pipe()
         async with xbu_pipe.pipe_text_reader(notification_pipe_r) as notification_reader:
             del notification_pipe_r
@@ -227,6 +242,19 @@ class XbstrapWorkerBuildSystem(WorkerBuildSystem):
                     await artifact_helper.send_artifact(
                         identifier, path.join(pkgs_dir, path.basename(artifact.repo_file_path))
                     )
+                elif action == "archive-rootfs":
+                    arch = notification["architecture"]
+                    for artifact_type in ROOTFS_ARTIFACT_TYPES:
+                        identifier = artifact_identifier(artifact_type, arch, subject)
+                        artifact = self.task.referenced_artifacts[identifier]
+                        await artifact_helper.send_artifact(
+                            identifier,
+                            path.join(
+                                self.job_directory,
+                                "rootfs-archives",
+                                path.basename(artifact.repo_file_path),
+                            ),
+                        )
                 elif len(artifact_files) == 0:
                     continue
                 for file in artifact_files:
