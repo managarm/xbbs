@@ -18,7 +18,7 @@
 This module contains models for data output by ``xbstrap-pipeline``.
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic.type_adapter import TypeAdapter
 
 
@@ -60,6 +60,9 @@ class PipelineJobProducts(BaseModel):
     pkgs: list[PipelineArtifact]
     """Packages produced by this node."""
 
+    rootfses: list[PipelineArtifact] = Field(default_factory=list)
+    """Rootfses produced by this node.  Older versions of ``xbstrap`` do not report them."""
+
     files: list[PipelineFileArtifact]
     """Files produced by this node."""
 
@@ -72,6 +75,9 @@ class PipelineJobNeeds(BaseModel):
 
     pkgs: list[PipelineArtifact]
     """Packages needed to start executing this node."""
+
+    rootfses: list[PipelineArtifact] = Field(default_factory=list)
+    """Rootfses needed to start executing this node."""
 
 
 class PipelineJob(BaseModel):

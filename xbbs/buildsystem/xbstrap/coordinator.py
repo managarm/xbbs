@@ -33,11 +33,17 @@ from xbbs.data.config import Project, XbstrapProjectConfig
 from .. import CoordinatorBuildSystem, dag
 from .common import CommitObject, XbstrapTask
 from .dag import (
+    ROOTFS_ARTIFACT_TYPES,
     XbstrapNode,
     parse_raw_dag_into_xbbs_dag,
 )
 from .raw_dag import parse_raw_dag
-from .repos import deposit_artifact, read_tool_repo_versions
+from .repos import (
+    deposit_artifact,
+    read_rootfs_repo_versions,
+    read_tool_repo_versions,
+    remove_unknown_rootfs_files,
+)
 from .xbps import read_xbps_repodata
 
 if T.TYPE_CHECKING:
@@ -95,8 +101,8 @@ class XbstrapCoordinatorBuildSystem(CoordinatorBuildSystem):
     def _initialize_repositories(self) -> None:
         """Initialize our build repositories based on a previous build."""
         assert self.previous_repo_directory
-        # We only care about these two types.
-        for artifact_type in ("packages", "tools"):
+        # We only care about these three types.
+        for artifact_type in ("packages", "tools", "rootfses"):
             try:
                 source = path.join(self.previous_repo_directory, artifact_type)
                 copytree_cfr(
@@ -152,6 +158,7 @@ class XbstrapCoordinatorBuildSystem(CoordinatorBuildSystem):
         # TODO(arsen): xbstrap assumes one arch here..
         tool_repos = path.join(self.repo_directory, "tools")
         pkg_repos = path.join(self.repo_directory, "packages")
+        rootfses = read_rootfs_repo_versions(path.join(self.repo_directory, "rootfses"))
         arches = set().union(
             xbu_fs.listdir_or_empty(tool_repos), xbu_fs.listdir_or_empty(pkg_repos)
         )
@@ -159,7 +166,7 @@ class XbstrapCoordinatorBuildSystem(CoordinatorBuildSystem):
         if len(arches) > 1:
             raise RuntimeError("multiarch build not supported by xbstrap yet")
         if len(arches) == 0:
-            return dict[str, T.Any](tools={}, pkgs={})
+            return dict[str, T.Any](tools={}, pkgs={}, rootfses=rootfses)
 
         (arch,) = arches
 
@@ -175,7 +182,7 @@ class XbstrapCoordinatorBuildSystem(CoordinatorBuildSystem):
         except FileNotFoundError:
             packages = dict()
 
-        return dict(tools=tools, pkgs=packages)
+        return dict(tools=tools, pkgs=packages, rootfses=rootfses)
 
     async def compute_job_graph(self) -> dag.Graph:
         _call = self._call
@@ -216,7 +223,7 @@ class XbstrapCoordinatorBuildSystem(CoordinatorBuildSystem):
         del _write_comm_object
 
         # Get the version info for incremental builds.
-        versions = dict[str, T.Any](tools={}, pkgs={})
+        versions = dict[str, T.Any](tools={}, pkgs={}, rootfses={})
         if self.previous_repo_directory:
             versions = self._load_versions()
 
@@ -238,6 +245,7 @@ class XbstrapCoordinatorBuildSystem(CoordinatorBuildSystem):
             a.data.architecture
             for a in self._graph.artifacts.values()
             if a.data.architecture != "noarch"
+            and a.data.artifact_type not in ROOTFS_ARTIFACT_TYPES
         )
 
         if len(self._all_arches) > 1:
@@ -245,6 +253,17 @@ class XbstrapCoordinatorBuildSystem(CoordinatorBuildSystem):
                 f"Multi-architecture builds are not supported yet (got {self._all_arches!r})"
             )
             raise RuntimeError("Multi-arch builds not supported yet")
+
+        # Incremental builds carry the rootfses of the previous build forward.  Remove
+        # those that this build does not use anymore.
+        remove_unknown_rootfs_files(
+            path.join(self.repo_directory, "rootfses"),
+            set(
+                path.basename(a.repo_file_path)
+                for a in self._graph.artifacts.values()
+                if a.data.artifact_type in ROOTFS_ARTIFACT_TYPES
+            ),
+        )
 
         return self._graph
 
