@@ -24,7 +24,9 @@ The implementation presumes xbstrap_ will be used in combination with `xbps`_.
 """
 
 import typing as T
+from subprocess import CalledProcessError
 
+import xbbs.utils.proc as xbu_proc
 from xbbs.data.config import Project
 from xbbs.utils.logging.build_logger import BuildLogger
 
@@ -73,6 +75,13 @@ class XbstrapBuildSystemFactory(BuildSystemFactory):
             repo_base_url,
             serialized_task,
         )
+
+    async def clean_up_after_job(self, log_io: BuildLogger, work_root: str) -> None:
+        # Job directories are temporary, so their sysroot volumes are never reused.
+        try:
+            await xbu_proc.do_command(log_io, "xbstrap", "gc", "-f", cwd=work_root)
+        except CalledProcessError:
+            log_io.error("xbstrap gc failed")
 
 
 if T.TYPE_CHECKING:
