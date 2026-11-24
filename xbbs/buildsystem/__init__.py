@@ -217,6 +217,17 @@ class BuildSystemFactory(ABC):
                            :py:class:`CoordinatorBuildSystem` implementation.
         """
 
+    async def clean_up_after_job(self, log_io: BuildLogger, work_root: str) -> None:
+        """
+        Called on the worker after the job directory of a task has been deleted, whether
+        or not the task succeeded.  Build systems can use this to reclaim resources that
+        outlive job directories.  Does nothing by default.
+
+        Args:
+          log_io: A logger for user-visible worker logs.
+          work_root: The directory that contains the job directories.
+        """
+
 
 class BuildSystem(enum.Enum):
     """

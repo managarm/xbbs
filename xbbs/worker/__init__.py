@@ -28,6 +28,7 @@ import xbbs.data.messages as xbd_messages
 import xbbs.utils.logging as xbu_logging
 import xbbs.utils.pipe as xbu_pipe
 import xbbs.utils.str as xbu_str
+from xbbs.buildsystem import create_build_system_factory
 
 from .artifact_helper import ArtifactHelperImpl
 from .builder import build_task
@@ -73,6 +74,20 @@ def add_background_task(task: asyncio.Future[T.Any]) -> None:
     task.add_done_callback(_background_tasks.discard)
 
 
+async def _clean_up_after_job(
+    task: xbd_messages.tasks.TaskResponse,
+    worker_cfg: config.WorkerConfig,
+    build_logger: xbu_logging.build_logger.BuildLogger,
+) -> None:
+    """Run the clean-up hook of the build system, without affecting the job result."""
+    try:
+        factory = create_build_system_factory(task.buildsystem)
+        await factory.clean_up_after_job(build_logger, worker_cfg.work_root)
+    except Exception:
+        logger.exception("clean-up after execution %r failed", task)
+        build_logger.exception("worker failure while cleaning up")
+
+
 async def execute_job(
     client: aiohttp.ClientSession,
     task: xbd_messages.tasks.TaskResponse,
@@ -96,23 +111,27 @@ async def execute_job(
         try:
             build_logger = xbu_logging.build_logger.BuildLogger(log_w)
 
-            with tempfile.TemporaryDirectory(dir=worker_cfg.work_root) as work_dir:
-                # Start the real build.
-                fail_mode = "F"
-                is_success = await build_task(
-                    work_dir,
-                    ArtifactHelperImpl(
-                        client,
-                        task.execution_id,
-                        task.repo_url_path,
+            try:
+                with tempfile.TemporaryDirectory(dir=worker_cfg.work_root) as work_dir:
+                    # Start the real build.
+                    fail_mode = "F"
+                    is_success = await build_task(
+                        work_dir,
+                        ArtifactHelperImpl(
+                            client,
+                            task.execution_id,
+                            task.repo_url_path,
+                            build_logger,
+                        ),
+                        task,
                         build_logger,
-                    ),
-                    task,
-                    build_logger,
-                    xbu_str.fuse_with_slashes(worker_cfg.coordinator_url, task.repo_url_path),
-                )
-                if is_success:
-                    fail_mode = "S"
+                        xbu_str.fuse_with_slashes(worker_cfg.coordinator_url, task.repo_url_path),
+                    )
+                    if is_success:
+                        fail_mode = "S"
+            finally:
+                # Runs once the job directory is gone, even if the job failed.
+                await _clean_up_after_job(task, worker_cfg, build_logger)
         except Exception:
             logger.exception("build of execution %r failed exceptionally", task)
             if build_logger:
